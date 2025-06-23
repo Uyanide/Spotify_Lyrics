@@ -25,17 +25,17 @@ func _onTrackChange(currRes *FetchResult, display *Display, nextIdx *int, trackI
 		display.display()
 		log(fmt.Sprintf("Error fetching lyrics for track ID %s: %v", trackID, err))
 		return
-	} else if !result.IsSynced {
-		display.AddLine(trackInfo)
-		display.AddLine("Lyrics are not synced")
-		display.display()
-		log(fmt.Sprintf("Lyrics for track ID %s are not synced", trackID))
-		return
 	} else if result.IsInvalid {
 		display.AddLine(trackInfo)
 		display.AddLine("Lyrics not available")
 		display.display()
 		log(fmt.Sprintf("Lyrics for track ID %s not available", trackID))
+		return
+	} else if !result.IsSynced {
+		display.AddLine(trackInfo)
+		display.AddLine("Lyrics are not synced")
+		display.display()
+		log(fmt.Sprintf("Lyrics for track ID %s are not synced", trackID))
 		return
 	}
 
