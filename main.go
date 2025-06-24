@@ -47,10 +47,11 @@ func acquireLock(lockFile string) (*os.File, error) {
 }
 
 var (
-	numLines   int
-	outputPath string
-	trackID    string
-	offset     int
+	argMumLines   int
+	argOutputPath string
+	argTrackID    string
+	argOffset     int
+	argOffsetFile string
 )
 
 var rootCmd = &cobra.Command{
@@ -73,8 +74,8 @@ var fetchCmd = &cobra.Command{
 		var finalTrackID string
 		if len(args) > 0 {
 			finalTrackID = args[0]
-		} else if trackID != "" {
-			finalTrackID = trackID
+		} else if argTrackID != "" {
+			finalTrackID = argTrackID
 		} else {
 			var err error
 			finalTrackID, err = getTrackID()
@@ -102,7 +103,7 @@ var listenCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cacheDir := getCacheDir()
 		lockFile := filepath.Join(cacheDir, "spotify-lyrics.lock")
-		listen(numLines, offset, cacheDir, outputPath, lockFile)
+		listen(argMumLines, cacheDir, argOutputPath, lockFile, argOffset, argOffsetFile)
 	},
 }
 
@@ -111,7 +112,7 @@ var printCmd = &cobra.Command{
 	Short: "Print mode - single shot display",
 	Run: func(cmd *cobra.Command, args []string) {
 		cacheDir := getCacheDir()
-		print(numLines, offset, cacheDir, outputPath)
+		print(argMumLines, cacheDir, argOutputPath, argOffset, argOffsetFile)
 	},
 }
 
@@ -130,16 +131,18 @@ var clearCmd = &cobra.Command{
 
 func init() {
 	// Fetch command flags
-	fetchCmd.Flags().StringVarP(&trackID, "track", "t", "", "Track ID to fetch")
+	fetchCmd.Flags().StringVarP(&argTrackID, "track", "t", "", "Track ID to fetch")
 
 	// Listen/Print command flags
-	listenCmd.Flags().IntVarP(&numLines, "lines", "l", 5, "Number of lines to display")
-	listenCmd.Flags().StringVarP(&outputPath, "output", "o", "/dev/stdout", "Output file path")
-	listenCmd.Flags().IntVarP(&offset, "offset", "O", 0, "Offset in milliseconds for lyrics timing")
+	listenCmd.Flags().IntVarP(&argMumLines, "lines", "l", 5, "Number of lines to display")
+	listenCmd.Flags().StringVarP(&argOutputPath, "output", "o", "/dev/stdout", "Output file path")
+	listenCmd.Flags().StringVarP(&argOffsetFile, "offset-file", "f", "", "File to read offset from (if not set, uses --offset)")
+	listenCmd.Flags().IntVarP(&argOffset, "offset", "O", 0, "Offset in milliseconds for lyrics timing (ignored if --offset-file is set)")
 
-	printCmd.Flags().IntVarP(&numLines, "lines", "l", 5, "Number of lines to display")
-	printCmd.Flags().StringVarP(&outputPath, "output", "o", "/dev/stdout", "Output file path")
-	printCmd.Flags().IntVarP(&offset, "offset", "O", 0, "Offset in milliseconds for lyrics timing")
+	printCmd.Flags().IntVarP(&argMumLines, "lines", "l", 5, "Number of lines to display")
+	printCmd.Flags().StringVarP(&argOutputPath, "output", "o", "/dev/stdout", "Output file path")
+	printCmd.Flags().StringVarP(&argOffsetFile, "offset-file", "f", "", "File to read offset from (if not set, uses --offset)")
+	printCmd.Flags().IntVarP(&argOffset, "offset", "O", 0, "Offset in milliseconds for lyrics timing (ignored if --offset-file is set)")
 
 	// Add commands to root
 	rootCmd.AddCommand(fetchCmd)

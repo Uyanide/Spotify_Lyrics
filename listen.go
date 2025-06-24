@@ -3,14 +3,73 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"syscall"
 	"time"
 )
 
-func _onTrackChange(currRes *FetchResult, display *Display, nextIdx *int, trackID string, cacheDir string) {
-	log(fmt.Sprintf("Switching to track ID: %s", trackID))
-	display.Clear()
-	*nextIdx = 0
+type Listener struct {
+	display    *Display
+	currTID    string
+	currRes    FetchResult
+	nextIdx    int
+	currOffset int
+	cacheDir   string
+	offset     int
+	offsetFile string
+}
+
+func (l *Listener) loop() {
+	for {
+		func() {
+			l.proc()
+			time.Sleep(config.LISTEN_INTERVAL)
+		}()
+	}
+}
+
+func (l *Listener) proc() {
+	trackID, err := getTrackID()
+	if l.currTID != trackID {
+		l.currTID = trackID
+		if err != nil {
+			l.display.SingleLine("No track found")
+			log(fmt.Sprintf("Error getting track ID: %v", err))
+			return
+		}
+		l.onTrackChanged()
+	}
+
+	currPos, err := getPosition()
+	if err != nil {
+		l.display.SingleLine("Error getting position")
+		log(fmt.Sprintf("Error getting position: %v", err))
+		return
+	}
+
+	changed := false
+	offset, err := l.getOffset()
+	if err != nil {
+		log(fmt.Sprintf("Error getting offset: %v", err))
+	} else {
+		l.currOffset = offset
+	}
+	log(fmt.Sprintf("Current position: %d, Offset: %d", currPos, offset))
+	for l.nextIdx < len(l.currRes.Lyrics) && l.currRes.Lyrics[l.nextIdx].Time+l.currOffset <= currPos {
+		l.display.AddLine(l.currRes.Lyrics[l.nextIdx].Lyric)
+		l.nextIdx++
+		changed = true
+	}
+
+	if changed {
+		l.display.display()
+	}
+}
+
+func (l *Listener) onTrackChanged() {
+	log(fmt.Sprintf("Switching to track ID: %s", l.currTID))
+	l.display.Clear()
+	l.nextIdx = 0
 
 	trackInfo, err := getTrackInfo()
 	if err != nil {
@@ -18,62 +77,46 @@ func _onTrackChange(currRes *FetchResult, display *Display, nextIdx *int, trackI
 		return
 	}
 
-	result, err := fetchLyrics(trackID, cacheDir)
+	result, err := fetchLyrics(l.currTID, l.cacheDir)
 	if err != nil || result == nil {
-		display.AddLine(trackInfo)
-		display.AddLine("No lyrics found")
-		display.display()
-		log(fmt.Sprintf("Error fetching lyrics for track ID %s: %v", trackID, err))
+		l.display.AddLine(trackInfo)
+		l.display.AddLine("No lyrics found")
+		l.display.display()
+		log(fmt.Sprintf("Error fetching lyrics for track ID %s: %v", l.currTID, err))
 		return
 	} else if result.IsInvalid {
-		display.AddLine(trackInfo)
-		display.AddLine("Lyrics not available")
-		display.display()
-		log(fmt.Sprintf("Lyrics for track ID %s not available", trackID))
+		l.display.AddLine(trackInfo)
+		l.display.AddLine("Lyrics not available")
+		l.display.display()
+		log(fmt.Sprintf("Lyrics for track ID %s not available", l.currTID))
 		return
 	} else if !result.IsSynced {
-		display.AddLine(trackInfo)
-		display.AddLine("Lyrics are not synced")
-		display.display()
-		log(fmt.Sprintf("Lyrics for track ID %s are not synced", trackID))
+		l.display.AddLine(trackInfo)
+		l.display.AddLine("Lyrics are not synced")
+		l.display.display()
+		log(fmt.Sprintf("Lyrics for track ID %s are not synced", l.currTID))
 		return
 	}
 
-	*currRes = *result
+	l.currRes = *result
 }
 
-func _listenProc(currTID *string, currRes *FetchResult, display *Display, nextIdx *int, offset int, cacheDir string) {
-	trackID, err := getTrackID()
-	if *currTID != trackID {
-		*currTID = trackID
+func (l *Listener) getOffset() (int, error) {
+	if l.offsetFile != "" {
+		content, err := os.ReadFile(l.offsetFile)
 		if err != nil {
-			display.SingleLine("No track found")
-			log(fmt.Sprintf("Error getting track ID: %v", err))
-			return
+			return 0, fmt.Errorf("error reading offset file: %v", err)
 		}
-		_onTrackChange(currRes, display, nextIdx, trackID, cacheDir)
+		offset, err := strconv.Atoi(string(content))
+		if err != nil {
+			return 0, fmt.Errorf("error parsing offset from file: %v", err)
+		}
+		return offset, nil
 	}
-
-	currPos, err := getPosition()
-	if err != nil {
-		display.SingleLine("Error getting position")
-		log(fmt.Sprintf("Error getting position: %v", err))
-		return
-	}
-
-	var changed bool
-	for currRes != nil && *nextIdx < len(currRes.Lyrics) && currRes.Lyrics[*nextIdx].Time+offset <= currPos {
-		display.AddLine(currRes.Lyrics[*nextIdx].Lyric)
-		*nextIdx++
-		changed = true
-	}
-
-	if changed {
-		display.display()
-	}
+	return l.offset, nil
 }
 
-func listen(numLines int, offset int, cacheDir string, outputPath string, lockFile string) {
+func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string) {
 	lockFileHandle, err := acquireLock(lockFile)
 	if err != nil {
 		log(err.Error())
@@ -85,25 +128,29 @@ func listen(numLines int, offset int, cacheDir string, outputPath string, lockFi
 		os.Remove(lockFile)
 	}()
 
-	display := NewDisplay(numLines, outputPath)
-	var currTID string
-	var currRes FetchResult
-	var nextIdx int
-
-	for {
-		func() {
-			defer func() {
-				time.Sleep(config.LISTEN_INTERVAL)
-			}()
-			_listenProc(&currTID, &currRes, display, &nextIdx, offset, cacheDir)
-		}()
+	listener := Listener{
+		display:    NewDisplay(numLines, outputPath),
+		currTID:    "",
+		currRes:    FetchResult{},
+		nextIdx:    0,
+		currOffset: 0,
+		cacheDir:   cacheDir,
+		offset:     offset,
+		offsetFile: offsetFile,
 	}
+	listener.loop()
 }
 
-func print(numLines int, offset int, cacheDir string, outputPath string) {
-	display := NewDisplay(numLines, outputPath)
-	var currRes FetchResult
-	var nextIdx int
-	var somestring string
-	_listenProc(&somestring, &currRes, display, &nextIdx, offset, cacheDir)
+func print(numLines int, cacheDir string, outputPath string, offset int, offsetFile string) {
+	listener := Listener{
+		display:    NewDisplay(numLines, outputPath),
+		currTID:    "",
+		currRes:    FetchResult{},
+		nextIdx:    0,
+		currOffset: 0,
+		cacheDir:   cacheDir,
+		offset:     offset,
+		offsetFile: offsetFile,
+	}
+	listener.proc()
 }
