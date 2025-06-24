@@ -42,10 +42,10 @@ func _onTrackChange(currRes *FetchResult, display *Display, nextIdx *int, trackI
 	*currRes = *result
 }
 
-func _listenProc(currTID string, currRes *FetchResult, display *Display, nextIdx *int, offset int, cacheDir string) {
+func _listenProc(currTID *string, currRes *FetchResult, display *Display, nextIdx *int, offset int, cacheDir string) {
 	trackID, err := getTrackID()
-	if currTID != trackID {
-		currTID = trackID
+	if *currTID != trackID {
+		*currTID = trackID
 		if err != nil {
 			display.SingleLine("No track found")
 			log(fmt.Sprintf("Error getting track ID: %v", err))
@@ -87,7 +87,7 @@ func listen(numLines int, offset int, cacheDir string, outputPath string, lockFi
 
 	display := NewDisplay(numLines, outputPath)
 	var currTID string
-	var currRes *FetchResult
+	var currRes FetchResult
 	var nextIdx int
 
 	for {
@@ -95,7 +95,7 @@ func listen(numLines int, offset int, cacheDir string, outputPath string, lockFi
 			defer func() {
 				time.Sleep(config.LISTEN_INTERVAL)
 			}()
-			_listenProc(currTID, currRes, display, &nextIdx, offset, cacheDir)
+			_listenProc(&currTID, &currRes, display, &nextIdx, offset, cacheDir)
 		}()
 	}
 }
@@ -104,5 +104,6 @@ func print(numLines int, offset int, cacheDir string, outputPath string) {
 	display := NewDisplay(numLines, outputPath)
 	var currRes FetchResult
 	var nextIdx int
-	_listenProc("", &currRes, display, &nextIdx, offset, cacheDir)
+	var somestring string
+	_listenProc(&somestring, &currRes, display, &nextIdx, offset, cacheDir)
 }
