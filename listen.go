@@ -79,7 +79,7 @@ func (l *Listener) onTrackChanged() {
 	trackInfo, err := getTrackInfo()
 	if err != nil {
 		log(fmt.Sprintf("Error getting track info: %v", err))
-		return
+		trackInfo = "Unknown Track"
 	}
 
 	result, err := fetchLyrics(l.currTID, l.cacheDir)
@@ -98,13 +98,11 @@ func (l *Listener) onTrackChanged() {
 		l.display.AddLine("Lyrics not available")
 		l.display.display()
 		log(fmt.Sprintf("Lyrics for track ID %s not available", l.currTID))
-		return
 	} else if !result.IsSynced {
 		l.display.AddLine(trackInfo)
 		l.display.AddLine("Lyrics are not synced")
 		l.display.display()
 		log(fmt.Sprintf("Lyrics for track ID %s are not synced", l.currTID))
-		return
 	}
 
 }
