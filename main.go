@@ -54,6 +54,7 @@ var (
 	argOffset     int
 	argOffsetFile string
 	argInterval   int
+	argPureOutput bool
 )
 
 var rootCmd = &cobra.Command{
@@ -88,13 +89,19 @@ var fetchCmd = &cobra.Command{
 		}
 
 		res, err := fetchLyrics(finalTrackID, cacheDir)
-		if err != nil {
+		if err != nil || res == nil || res.IsInvalid {
 			log(err.Error())
 			return
 		}
 
-		for _, lyric := range res.Lyrics {
-			fmt.Printf("%d %s\n", lyric.Time, lyric.Lyric)
+		if argPureOutput {
+			for _, lyric := range res.Lyrics {
+				fmt.Println(lyric.Lyric)
+			}
+		} else {
+			for _, lyric := range res.Lyrics {
+				fmt.Printf("%d %s\n", lyric.Time, lyric.Lyric)
+			}
 		}
 	},
 }
@@ -204,6 +211,7 @@ var trackIDCmd = &cobra.Command{
 func init() {
 	// Fetch command flags
 	fetchCmd.Flags().StringVarP(&argTrackID, "track", "t", "", "Track ID to fetch")
+	fetchCmd.Flags().BoolVarP(&argPureOutput, "pure", "p", false, "Output lyrics without times")
 
 	// Listen/Print command flags
 	listenCmd.Flags().IntVarP(&argMumLines, "lines", "l", 5, "Number of lines to display")
