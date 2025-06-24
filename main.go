@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -62,7 +63,7 @@ var rootCmd = &cobra.Command{
 }
 
 var fetchCmd = &cobra.Command{
-	Use:   "fetch [track-id]",
+	Use:   "fetch",
 	Short: "Fetch lyrics for current or specified track",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -130,6 +131,76 @@ var clearCmd = &cobra.Command{
 	},
 }
 
+var lengthCmd = &cobra.Command{
+	Use:   "length",
+	Short: "Get the length of the current track (in ms)",
+	Run: func(_ *cobra.Command, _ []string) {
+		length, err := getLength()
+		if err != nil {
+			log(fmt.Sprintf("Error getting track length: %v", err))
+			return
+		}
+		fmt.Printf("%d\n", length)
+	},
+}
+
+var positionCmd = &cobra.Command{
+	Use:   "position",
+	Short: "Get the current position of the track (in ms)",
+	Run: func(cmd *cobra.Command, args []string) {
+		position, err := getPosition()
+		if err != nil {
+			log(fmt.Sprintf("Error getting track position: %v", err))
+			return
+		}
+		fmt.Printf("%d\n", position)
+	},
+}
+
+var setPositionCmd = &cobra.Command{
+	Use:   "set-position [position]",
+	Short: "Set the current position of the track (in ms)",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		position, err := strconv.Atoi(args[0])
+		if err != nil {
+			log(fmt.Sprintf("Invalid position: %v", err))
+			return
+		}
+		if err := setPosition(position); err != nil {
+			log(fmt.Sprintf("Error setting track position: %v", err))
+			return
+		}
+		log(fmt.Sprintf("Track position set to: %d ms", position))
+	},
+}
+
+var infoCmd = &cobra.Command{
+	Use:   "info",
+	Short: "Get information about the current track",
+	Run: func(_ *cobra.Command, _ []string) {
+		trackInfo, err := getTrackInfo()
+		if err != nil {
+			log(fmt.Sprintf("Error getting track info: %v", err))
+			return
+		}
+		fmt.Println(trackInfo)
+	},
+}
+
+var trackIDCmd = &cobra.Command{
+	Use:   "trackid",
+	Short: "Get the current track ID",
+	Run: func(_ *cobra.Command, _ []string) {
+		trackID, err := getTrackID()
+		if err != nil {
+			log(fmt.Sprintf("Error getting track ID: %v", err))
+			return
+		}
+		fmt.Println(trackID)
+	},
+}
+
 func init() {
 	// Fetch command flags
 	fetchCmd.Flags().StringVarP(&argTrackID, "track", "t", "", "Track ID to fetch")
@@ -151,6 +222,11 @@ func init() {
 	rootCmd.AddCommand(listenCmd)
 	rootCmd.AddCommand(printCmd)
 	rootCmd.AddCommand(clearCmd)
+	rootCmd.AddCommand(lengthCmd)
+	rootCmd.AddCommand(positionCmd)
+	rootCmd.AddCommand(setPositionCmd)
+	rootCmd.AddCommand(infoCmd)
+	rootCmd.AddCommand(trackIDCmd)
 }
 
 func main() {

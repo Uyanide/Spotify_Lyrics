@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -195,55 +194,4 @@ func fetchLyrics(trackID string, cacheDir string) (*FetchResult, error) {
 
 	log(fmt.Sprintf("Fetched %d lines of lyrics for track ID: %s", len(result.Lyrics), trackID))
 	return &result, nil
-}
-
-func getTrackID() (string, error) {
-	cmd := exec.Command("playerctl", "metadata", "mpris:trackid", "--player=spotify")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("error running playerctl: %v", err)
-	}
-
-	trackID := strings.TrimSpace(string(output))
-	if trackID == "" {
-		return "", fmt.Errorf("no track ID found")
-	}
-
-	parts := strings.Split(trackID, "/")
-	if len(parts) == 0 {
-		return "", fmt.Errorf("invalid track ID format")
-	}
-
-	return parts[len(parts)-1], nil
-}
-
-func getPosition() (int, error) {
-	cmd := exec.Command("playerctl", "position", "--player=spotify")
-	output, err := cmd.Output()
-	if err != nil {
-		return -1, fmt.Errorf("error getting position: %v", err)
-	}
-
-	positionStr := strings.TrimSpace(string(output))
-	position, err := strconv.ParseFloat(positionStr, 64)
-	if err != nil {
-		return -1, fmt.Errorf("invalid position value: %v", err)
-	}
-
-	return int(position * 1000), nil // Convert to milliseconds
-}
-
-func getTrackInfo() (string, error) {
-	cmd := exec.Command("playerctl", "metadata", "--format", "{{artist}} - {{title}}", "--player=spotify")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("error getting track info: %v", err)
-	}
-
-	trackInfo := strings.TrimSpace(string(output))
-	if trackInfo == "" {
-		return "", fmt.Errorf("no track info found")
-	}
-
-	return trackInfo, nil
 }
