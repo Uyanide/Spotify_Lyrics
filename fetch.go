@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type LyricLine struct {
@@ -43,6 +44,16 @@ func parseCachedLyrics(content string) (*FetchResult, error) {
 	var result FetchResult
 
 	if lines[0] == "404" {
+		// check if cache is expired
+		fetchTime, err := strconv.Atoi(lines[1])
+		if err != nil {
+			return nil, fmt.Errorf("invalid cached lyrics format: error parsing fetch time '%s': %v", lines[1], err)
+		}
+		currTime := time.Now().Unix()
+		if currTime-int64(fetchTime) >= int64(config.REFETCH_INTERVAL) {
+			return nil, fmt.Errorf("cached state expired, need to refetch")
+		}
+		// if not, treat as invalid
 		result.IsInvalid = true
 		return &result, nil
 	}
@@ -75,6 +86,7 @@ func _fetchCacheError(cacheFile string) (*FetchResult, error) {
 		defer file.Close()
 		writer := bufio.NewWriter(file)
 		fmt.Fprintln(writer, "404")
+		fmt.Fprintln(writer, time.Now().Unix()) // Store the fetch time
 		writer.Flush()
 		var ret FetchResult
 		ret.IsInvalid = true
@@ -132,6 +144,19 @@ func fetchLyrics(trackID string, cacheDir string) (*FetchResult, error) {
 	if len(lyricsResp.Lines) == 0 {
 		return nil, fmt.Errorf("no lyrics found")
 	}
+	result.Lyrics = make([]TimedLyric, 0, len(lyricsResp.Lines))
+
+	// write track info as the first line
+	trackInfo, err := getTrackInfo()
+	if err != nil || trackInfo == "" {
+		log(fmt.Sprintf("Error getting track info: %v", err))
+		// ignore
+	} else {
+		result.Lyrics = append(result.Lyrics, TimedLyric{
+			Time:  0,
+			Lyric: trackInfo,
+		})
+	}
 
 	// Cache the lyrics
 	file, err := os.Create(cacheFile)
@@ -146,14 +171,19 @@ func fetchLyrics(trackID string, cacheDir string) (*FetchResult, error) {
 		} else {
 			fmt.Fprintln(writer, "UNSYNCED")
 		}
+		// first write track info
+		if len(result.Lyrics) > 0 && result.Lyrics[0].Lyric != "" {
+			fmt.Fprintln(writer, "0")
+			fmt.Fprintln(writer, trackInfo)
+		}
+		// then write lyrics
 		for _, line := range lyricsResp.Lines {
 			fmt.Fprintf(writer, "%s\n%s\n", line.StartTimeMs, line.Words)
 		}
 		writer.Flush()
 	}
 
-	// Convert to TimedLyric
-	result.Lyrics = make([]TimedLyric, 0, len(lyricsResp.Lines))
+	// Convert lyrics to TimedLyric
 	for _, line := range lyricsResp.Lines {
 		startTime, err := strconv.Atoi(line.StartTimeMs)
 		if err != nil {

@@ -7,42 +7,50 @@ import (
 )
 
 var (
-	APIUrl         = ""
-	ListenInterval = ""
+	APIUrl          = ""
+	ListenInterval  = ""
+	RefetchInterval = ""
+
+	DefaultListenInterval  = 200 // in ms
+	DefaultRefetchInterval = 600 // in seconds
 )
 
 type Config struct {
-	APIUrl   string
-	SPDC     string
-	INTERVAL time.Duration
+	APIUrl           string        // API for lyrics
+	LISTEN_INTERVAL  time.Duration // sleep interval for listen mode
+	REFETCH_INTERVAL int           // "404" cache expiration time, in seconds
 }
 
 func LoadConfig() *Config {
 	return &Config{
-		APIUrl:   getEnv("SPOTIFY_API_URL", APIUrl),
-		INTERVAL: time.Duration(getEnvInt("LISTEN_INTERVAL", ListenInterval)) * time.Millisecond,
+		APIUrl:           getEnv("SPOTIFY_API_URL", APIUrl, ""),
+		LISTEN_INTERVAL:  time.Duration(getEnvInt("LISTEN_INTERVAL", ListenInterval, DefaultListenInterval)) * time.Millisecond,
+		REFETCH_INTERVAL: getEnvInt("REFETCH_INTERVAL", RefetchInterval, DefaultRefetchInterval),
 	}
 }
 
-func getEnv(envKey, defaultValue string) string {
+func getEnv(envKey string, compileValue string, defaultValue string) string {
 	if envValue := os.Getenv(envKey); envValue != "" {
 		return envValue
+	}
+	if compileValue != "" {
+		return compileValue
 	}
 	return defaultValue
 }
 
-func getEnvInt(envKey, defaultValue string) int {
+func getEnvInt(envKey string, compileValue string, defaultValue int) int {
 	if envValue := os.Getenv(envKey); envValue != "" {
 		if intValue, err := strconv.Atoi(envValue); err == nil {
 			return intValue
 		}
 	}
 
-	if defaultValue != "" {
-		if intValue, err := strconv.Atoi(defaultValue); err == nil {
+	if compileValue != "" {
+		if intValue, err := strconv.Atoi(compileValue); err == nil {
 			return intValue
 		}
 	}
 
-	return 200
+	return defaultValue
 }

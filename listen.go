@@ -93,7 +93,7 @@ func listen(numLines int, offset int, cacheDir string, outputPath string, lockFi
 	for {
 		func() {
 			defer func() {
-				time.Sleep(config.INTERVAL)
+				time.Sleep(config.LISTEN_INTERVAL)
 			}()
 			_listenProc(currTID, currRes, display, &nextIdx, offset, cacheDir)
 		}()
