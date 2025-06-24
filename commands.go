@@ -82,3 +82,13 @@ func setPosition(position int) error {
 	}
 	return nil
 }
+
+func isPlaying() (bool, error) {
+	cmd := exec.Command("playerctl", "status", "--player=spotify")
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("error checking player status: %v", err)
+	}
+	status := strings.TrimSpace(string(output))
+	return status == "Playing", nil
+}

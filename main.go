@@ -208,6 +208,19 @@ var trackIDCmd = &cobra.Command{
 	},
 }
 
+var statusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Get if the current track is playing",
+	Run: func(_ *cobra.Command, _ []string) {
+		status, err := isPlaying()
+		if err != nil || !status {
+			os.Exit(1)
+		} else {
+			os.Exit(0)
+		}
+	},
+}
+
 func init() {
 	// Fetch command flags
 	fetchCmd.Flags().StringVarP(&argTrackID, "track", "t", "", "Track ID to fetch")
@@ -235,6 +248,7 @@ func init() {
 	rootCmd.AddCommand(setPositionCmd)
 	rootCmd.AddCommand(infoCmd)
 	rootCmd.AddCommand(trackIDCmd)
+	rootCmd.AddCommand(statusCmd)
 }
 
 func main() {

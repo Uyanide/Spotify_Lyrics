@@ -95,14 +95,14 @@ func (l *Listener) onTrackChanged() {
 	l.currRes = *result
 	if result.IsInvalid {
 		l.display.AddLine(trackInfo)
-		l.display.AddLine("Lyrics not available")
+		l.display.AddLine("Lyrics unavailable")
 		l.display.display()
-		log(fmt.Sprintf("Lyrics for track ID %s not available", l.currTID))
+		log(fmt.Sprintf("Lyrics for track ID %s unavailable", l.currTID))
 	} else if !result.IsSynced {
 		l.display.AddLine(trackInfo)
-		l.display.AddLine("Lyrics are not synced")
+		l.display.AddLine("Lyrics unsynchronized")
 		l.display.display()
-		log(fmt.Sprintf("Lyrics for track ID %s are not synced", l.currTID))
+		log(fmt.Sprintf("Lyrics for track ID %s unsynced", l.currTID))
 	}
 
 }
