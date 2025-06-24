@@ -19,11 +19,12 @@ type Listener struct {
 	offsetFile string
 }
 
-func (l *Listener) loop() {
+func (l *Listener) loop(interval int) {
+	duration := time.Duration(interval) * time.Millisecond
 	for {
 		func() {
 			l.proc()
-			time.Sleep(config.LISTEN_INTERVAL)
+			time.Sleep(duration)
 		}()
 	}
 }
@@ -38,6 +39,10 @@ func (l *Listener) proc() {
 			return
 		}
 		l.onTrackChanged()
+	}
+
+	if l.currRes.IsInvalid || !l.currRes.IsSynced {
+		return
 	}
 
 	currPos, err := getPosition()
@@ -82,9 +87,13 @@ func (l *Listener) onTrackChanged() {
 		l.display.AddLine(trackInfo)
 		l.display.AddLine("No lyrics found")
 		l.display.display()
-		log(fmt.Sprintf("Error fetching lyrics for track ID %s: %v", l.currTID, err))
+		l.currRes = FetchResult{
+			IsInvalid: true,
+		}
 		return
-	} else if result.IsInvalid {
+	}
+	l.currRes = *result
+	if result.IsInvalid {
 		l.display.AddLine(trackInfo)
 		l.display.AddLine("Lyrics not available")
 		l.display.display()
@@ -98,7 +107,6 @@ func (l *Listener) onTrackChanged() {
 		return
 	}
 
-	l.currRes = *result
 }
 
 func (l *Listener) getOffset() (int, error) {
@@ -116,7 +124,11 @@ func (l *Listener) getOffset() (int, error) {
 	return l.offset, nil
 }
 
-func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string) {
+func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string, interval int) {
+	if interval < config.MIN_LISTEN_INTERVAL {
+		log(fmt.Sprintf("Minimum listen interval is %d milliseconds, using that instead", config.MIN_LISTEN_INTERVAL))
+		interval = config.MIN_LISTEN_INTERVAL
+	}
 	lockFileHandle, err := acquireLock(lockFile)
 	if err != nil {
 		log(err.Error())
@@ -133,7 +145,7 @@ func listen(numLines int, cacheDir string, outputPath string, lockFile string, o
 		cacheDir:   cacheDir,
 		offset:     offset,
 		offsetFile: offsetFile,
-	}).loop()
+	}).loop(interval)
 }
 
 func print(numLines int, cacheDir string, outputPath string, offset int, offsetFile string) {

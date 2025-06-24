@@ -3,29 +3,28 @@ package main
 import (
 	"os"
 	"strconv"
-	"time"
 )
 
 var (
-	APIUrl          = ""
-	ListenInterval  = ""
-	RefetchInterval = ""
+	APIUrl            = ""
+	RefetchInterval   = ""
+	MinListenInterval = ""
 
-	DefaultListenInterval  = 200 // in ms
-	DefaultRefetchInterval = 600 // in seconds
+	DefaultRefetchInterval   = 600 // in seconds
+	DefaultMinListenInterval = 50  // in miliseconds
 )
 
 type Config struct {
-	APIUrl           string        // API for lyrics
-	LISTEN_INTERVAL  time.Duration // sleep interval for listen mode
-	REFETCH_INTERVAL int           // "404" cache expiration time, in seconds
+	APIUrl              string // API for lyrics
+	REFETCH_INTERVAL    int    // "404" cache expiration time, in seconds
+	MIN_LISTEN_INTERVAL int    // minimum interval between two lyrics fetches, in milliseconds
 }
 
 func LoadConfig() *Config {
 	return &Config{
-		APIUrl:           getEnv("SPOTIFY_API_URL", APIUrl, ""),
-		LISTEN_INTERVAL:  time.Duration(getEnvInt("LISTEN_INTERVAL", ListenInterval, DefaultListenInterval)) * time.Millisecond,
-		REFETCH_INTERVAL: getEnvInt("REFETCH_INTERVAL", RefetchInterval, DefaultRefetchInterval),
+		APIUrl:              getEnv("SPOTIFY_API_URL", APIUrl, ""),
+		REFETCH_INTERVAL:    getEnvInt("REFETCH_INTERVAL", RefetchInterval, DefaultRefetchInterval),
+		MIN_LISTEN_INTERVAL: getEnvInt("MIN_LISTEN_INTERVAL", MinListenInterval, DefaultMinListenInterval),
 	}
 }
 

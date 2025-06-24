@@ -52,6 +52,7 @@ var (
 	argTrackID    string
 	argOffset     int
 	argOffsetFile string
+	argInterval   int
 )
 
 var rootCmd = &cobra.Command{
@@ -103,7 +104,7 @@ var listenCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cacheDir := getCacheDir()
 		lockFile := filepath.Join(cacheDir, "spotify-lyrics.lock")
-		listen(argMumLines, cacheDir, argOutputPath, lockFile, argOffset, argOffsetFile)
+		listen(argMumLines, cacheDir, argOutputPath, lockFile, argOffset, argOffsetFile, argInterval)
 	},
 }
 
@@ -138,6 +139,7 @@ func init() {
 	listenCmd.Flags().StringVarP(&argOutputPath, "output", "o", "/dev/stdout", "Output file path")
 	listenCmd.Flags().StringVarP(&argOffsetFile, "offset-file", "f", "", "File to read offset from (if not set, uses --offset)")
 	listenCmd.Flags().IntVarP(&argOffset, "offset", "O", 0, "Offset in milliseconds for lyrics timing (ignored if --offset-file is set)")
+	listenCmd.Flags().IntVarP(&argInterval, "interval", "i", 200, "Interval in milliseconds beteen updates")
 
 	printCmd.Flags().IntVarP(&argMumLines, "lines", "l", 5, "Number of lines to display")
 	printCmd.Flags().StringVarP(&argOutputPath, "output", "o", "/dev/stdout", "Output file path")
