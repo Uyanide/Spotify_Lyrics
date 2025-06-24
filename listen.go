@@ -128,29 +128,19 @@ func listen(numLines int, cacheDir string, outputPath string, lockFile string, o
 		os.Remove(lockFile)
 	}()
 
-	listener := Listener{
+	(&Listener{
 		display:    NewDisplay(numLines, outputPath),
-		currTID:    "",
-		currRes:    FetchResult{},
-		nextIdx:    0,
-		currOffset: 0,
 		cacheDir:   cacheDir,
 		offset:     offset,
 		offsetFile: offsetFile,
-	}
-	listener.loop()
+	}).loop()
 }
 
 func print(numLines int, cacheDir string, outputPath string, offset int, offsetFile string) {
-	listener := Listener{
+	(&Listener{
 		display:    NewDisplay(numLines, outputPath),
-		currTID:    "",
-		currRes:    FetchResult{},
-		nextIdx:    0,
-		currOffset: 0,
 		cacheDir:   cacheDir,
 		offset:     offset,
 		offsetFile: offsetFile,
-	}
-	listener.proc()
+	}).proc()
 }
