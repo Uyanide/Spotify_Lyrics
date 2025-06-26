@@ -16,18 +16,19 @@ func init() {
 	config = LoadConfig()
 }
 
-func getCacheDir() string {
+func getCacheDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
+	var dir string
 	if err != nil {
 		log(fmt.Sprintf("Error getting home directory: %v", err))
-		return "/tmp/eww/lyrics"
+		dir = "/tmp/eww/lyrics"
+	} else {
+		dir = filepath.Join(homeDir, ".cache", "eww", "lyrics")
 	}
-	dir := filepath.Join(homeDir, ".cache", "eww", "lyrics")
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		log(fmt.Sprintf("Error creating cache directory: %v", err))
-		return "/tmp/eww/lyrics"
+		return "", err
 	}
-	return dir
+	return dir, nil
 }
 
 func acquireLock(lockFile string) (*os.File, error) {
@@ -64,13 +65,13 @@ var rootCmd = &cobra.Command{
 }
 
 var fetchCmd = &cobra.Command{
-	Use:   "fetch",
+	Use:   "fetch [trackID]",
 	Short: "Fetch lyrics for current or specified track",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		cacheDir := getCacheDir()
-		if err := os.MkdirAll(cacheDir, 0755); err != nil {
-			log(fmt.Sprintf("Error creating cache directory: %v", err))
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			log(fmt.Sprintf("Error initializing cache directory: %v", err))
 			return
 		}
 
@@ -110,7 +111,11 @@ var listenCmd = &cobra.Command{
 	Use:   "listen",
 	Short: "Listen mode - continuously display lyrics",
 	Run: func(cmd *cobra.Command, args []string) {
-		cacheDir := getCacheDir()
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			log(fmt.Sprintf("Error initializing cache directory: %v", err))
+			return
+		}
 		lockFile := filepath.Join(cacheDir, "spotify-lyrics.lock")
 		listen(argMumLines, cacheDir, argOutputPath, lockFile, argOffset, argOffsetFile, argInterval)
 	},
@@ -120,21 +125,37 @@ var printCmd = &cobra.Command{
 	Use:   "print",
 	Short: "Print mode - single shot display",
 	Run: func(cmd *cobra.Command, args []string) {
-		cacheDir := getCacheDir()
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			log(fmt.Sprintf("Error initializing cache directory: %v", err))
+			return
+		}
 		print(argMumLines, cacheDir, argOutputPath, argOffset, argOffsetFile)
 	},
 }
 
 var clearCmd = &cobra.Command{
-	Use:   "clear",
-	Short: "Clear the lyrics cache",
+	Use:   "clear [trackID]",
+	Short: "Clear all cached lyrics or for a specific track",
 	Run: func(cmd *cobra.Command, args []string) {
-		cacheDir := getCacheDir()
-		if err := os.RemoveAll(cacheDir); err != nil {
-			log(fmt.Sprintf("Error clearing cache directory: %v", err))
+		cacheDir, err := getCacheDir()
+		if err != nil {
+			log(fmt.Sprintf("Error initializing cache directory: %v", err))
 			return
 		}
-		log("Cache directory cleared")
+		if len(args) > 0 {
+			trackID := args[0]
+			trackFile := filepath.Join(cacheDir, trackID+".txt")
+			if err := os.Remove(trackFile); err != nil {
+				log(fmt.Sprintf("Error removing track cache file: %v", err))
+				return
+			}
+			log(fmt.Sprintf("Cache for track ID %s cleared", trackID))
+		} else if err := os.RemoveAll(cacheDir); err != nil {
+			log(fmt.Sprintf("Error clearing cache directory: %v", err))
+		} else {
+			log("Cache directory cleared")
+		}
 	},
 }
 

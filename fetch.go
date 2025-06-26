@@ -106,7 +106,6 @@ func fetchLyrics(trackID string, cacheDir string) (*FetchResult, error) {
 			log(fmt.Sprintf("Error parsing cached lyrics: %v", err))
 			// ignore cache error, will fetch from API
 		} else {
-			log(fmt.Sprintf("Returning cached lyrics for track ID: %s", trackID))
 			return res, nil
 		}
 	}

@@ -1,9 +1,11 @@
-## API
+### ENV
 
-[spotify-lyrics-api](https://github.com/akashrchandran/spotify-lyrics-api)
+-   `SPOTIFY_API_URL` (essential)
 
-## ENV
+-   `REFETCH_INTERVAL`
 
-`SPOTIFY_API_URL` (essential)
+### DEPENDENCY
 
-`REFETCH_INTERVAL`
+-   API Deployment: [spotify-lyrics-api](https://github.com/akashrchandran/spotify-lyrics-api)
+
+-   `playerctl` media player controller for spotify and others.

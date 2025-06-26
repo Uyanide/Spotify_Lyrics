@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -108,18 +109,26 @@ func (l *Listener) onTrackChanged() {
 }
 
 func (l *Listener) getOffset() (int, error) {
-	if l.offsetFile != "" {
-		content, err := os.ReadFile(l.offsetFile)
-		if err != nil {
-			return 0, fmt.Errorf("error reading offset file: %v", err)
-		}
-		offset, err := strconv.Atoi(string(content))
-		if err != nil {
-			return 0, fmt.Errorf("error parsing offset from file: %v", err)
-		}
-		return offset, nil
+	if l.offsetFile == "" {
+		return l.offset, nil
 	}
-	return l.offset, nil
+	content, err := os.ReadFile(l.offsetFile)
+	if err != nil {
+		log(fmt.Sprintf("Error reading offset file: %v", err))
+		// If the file doesn't exist, create it with initial value 0
+		if os.IsNotExist(err) {
+			if err := os.WriteFile(l.offsetFile, []byte("0"), 0644); err != nil {
+				return 0, fmt.Errorf("error creating offset file: %v", err)
+			}
+			log(fmt.Sprintf("Offset file created at %s with initial value 0", l.offsetFile))
+			return 0, nil
+		}
+	}
+	offset, err := strconv.Atoi(strings.TrimSpace(string(content)))
+	if err != nil {
+		return 0, fmt.Errorf("error parsing offset from file: %v", err)
+	}
+	return offset, nil
 }
 
 func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string, interval int) {
