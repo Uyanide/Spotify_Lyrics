@@ -49,12 +49,14 @@ func acquireLock(lockFile string) (*os.File, error) {
 }
 
 var (
-	argMumLines   int
+	argNumLines   int
 	argOutputPath string
 	argTrackID    string
 	argOffset     int
 	argOffsetFile string
 	argInterval   int
+	argAhead      int
+	argCls        bool
 	argPureOutput bool
 )
 
@@ -111,13 +113,21 @@ var listenCmd = &cobra.Command{
 	Use:   "listen",
 	Short: "Listen mode - continuously display lyrics",
 	Run: func(cmd *cobra.Command, args []string) {
+		if argNumLines < 1 {
+			log("Number of lines must be positive, correcting to 1")
+			argNumLines = 1
+		}
+		if argAhead < 0 {
+			log("Ahead lines must be non-negative, correcting to 0")
+			argAhead = 0
+		}
 		cacheDir, err := getCacheDir()
 		if err != nil {
 			log(fmt.Sprintf("Error initializing cache directory: %v", err))
 			return
 		}
 		lockFile := filepath.Join(cacheDir, "spotify-lyrics.lock")
-		listen(argMumLines, cacheDir, argOutputPath, lockFile, argOffset, argOffsetFile, argInterval)
+		listen(argNumLines, cacheDir, argOutputPath, lockFile, argOffset, argOffsetFile, argInterval, argAhead, argCls)
 	},
 }
 
@@ -125,12 +135,20 @@ var printCmd = &cobra.Command{
 	Use:   "print",
 	Short: "Print mode - single shot display",
 	Run: func(cmd *cobra.Command, args []string) {
+		if argNumLines < 1 {
+			log("Number of lines must be positive, correcting to 1")
+			argNumLines = 1
+		}
+		if argAhead < 0 {
+			log("Ahead lines must be non-negative, correcting to 0")
+			argAhead = 0
+		}
 		cacheDir, err := getCacheDir()
 		if err != nil {
 			log(fmt.Sprintf("Error initializing cache directory: %v", err))
 			return
 		}
-		print(argMumLines, cacheDir, argOutputPath, argOffset, argOffsetFile)
+		print(argNumLines, cacheDir, argOutputPath, argOffset, argOffsetFile, argAhead, argCls)
 	},
 }
 
@@ -244,20 +262,23 @@ var statusCmd = &cobra.Command{
 
 func init() {
 	// Fetch command flags
-	fetchCmd.Flags().StringVarP(&argTrackID, "track", "t", "", "Track ID to fetch")
 	fetchCmd.Flags().BoolVarP(&argPureOutput, "pure", "p", false, "Output lyrics without times")
 
 	// Listen/Print command flags
-	listenCmd.Flags().IntVarP(&argMumLines, "lines", "l", 5, "Number of lines to display")
+	listenCmd.Flags().IntVarP(&argNumLines, "lines", "l", 5, "Number of lines to display")
 	listenCmd.Flags().StringVarP(&argOutputPath, "output", "o", "/dev/stdout", "Output file path")
 	listenCmd.Flags().StringVarP(&argOffsetFile, "offset-file", "f", "", "File to read offset from (if not set, uses --offset)")
 	listenCmd.Flags().IntVarP(&argOffset, "offset", "O", 0, "Offset in milliseconds for lyrics timing (ignored if --offset-file is set)")
 	listenCmd.Flags().IntVarP(&argInterval, "interval", "i", 200, "Interval in milliseconds beteen updates")
+	listenCmd.Flags().IntVarP(&argAhead, "ahead", "a", 0, "Number of lines to display ahead of current position")
+	listenCmd.Flags().BoolVarP(&argCls, "cls", "c", false, "Clear the terminal before displaying lyrics")
 
-	printCmd.Flags().IntVarP(&argMumLines, "lines", "l", 5, "Number of lines to display")
+	printCmd.Flags().IntVarP(&argNumLines, "lines", "l", 5, "Number of lines to display")
 	printCmd.Flags().StringVarP(&argOutputPath, "output", "o", "/dev/stdout", "Output file path")
 	printCmd.Flags().StringVarP(&argOffsetFile, "offset-file", "f", "", "File to read offset from (if not set, uses --offset)")
 	printCmd.Flags().IntVarP(&argOffset, "offset", "O", 0, "Offset in milliseconds for lyrics timing (ignored if --offset-file is set)")
+	printCmd.Flags().IntVarP(&argAhead, "ahead", "a", 0, "Number of lines to display ahead of current position")
+	printCmd.Flags().BoolVarP(&argCls, "cls", "c", false, "Clear the terminal before displaying lyrics")
 
 	// Add commands to root
 	rootCmd.AddCommand(fetchCmd)

@@ -18,6 +18,8 @@ type Listener struct {
 	cacheDir   string
 	offset     int
 	offsetFile string
+	ahead      int
+	notFirst   bool
 }
 
 func (l *Listener) loop(interval int) {
@@ -61,8 +63,20 @@ func (l *Listener) proc() {
 		l.currOffset = offset
 	}
 	log(fmt.Sprintf("Current position: %d, Offset: %d", currPos, offset))
+	// display first {ahead} lines
+	if !l.notFirst {
+		for i := 0; i < l.ahead && i < len(l.currRes.Lyrics); i++ {
+			l.display.AddLine(l.currRes.Lyrics[i].Lyric)
+			changed = true
+		}
+		l.notFirst = true
+	}
 	for l.nextIdx < len(l.currRes.Lyrics) && l.currRes.Lyrics[l.nextIdx].Time+l.currOffset <= currPos {
-		l.display.AddLine(l.currRes.Lyrics[l.nextIdx].Lyric)
+		if l.nextIdx+l.ahead < len(l.currRes.Lyrics) {
+			l.display.AddLine(l.currRes.Lyrics[l.nextIdx+l.ahead].Lyric)
+		} else {
+			l.display.AddLine("")
+		}
 		l.nextIdx++
 		changed = true
 	}
@@ -76,6 +90,7 @@ func (l *Listener) onTrackChanged() {
 	log(fmt.Sprintf("Switching to track ID: %s", l.currTID))
 	l.display.Clear()
 	l.nextIdx = 0
+	l.notFirst = false
 
 	trackInfo, err := getTrackInfo()
 	if err != nil {
@@ -131,7 +146,7 @@ func (l *Listener) getOffset() (int, error) {
 	return offset, nil
 }
 
-func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string, interval int) {
+func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string, interval int, ahead int, cls bool) {
 	if interval < config.MIN_LISTEN_INTERVAL {
 		log(fmt.Sprintf("Minimum listen interval is %d milliseconds, using that instead", config.MIN_LISTEN_INTERVAL))
 		interval = config.MIN_LISTEN_INTERVAL
@@ -148,18 +163,20 @@ func listen(numLines int, cacheDir string, outputPath string, lockFile string, o
 	}()
 
 	(&Listener{
-		display:    NewDisplay(numLines, outputPath),
+		display:    NewDisplay(numLines, outputPath, cls),
 		cacheDir:   cacheDir,
 		offset:     offset,
 		offsetFile: offsetFile,
+		ahead:      ahead,
 	}).loop(interval)
 }
 
-func print(numLines int, cacheDir string, outputPath string, offset int, offsetFile string) {
+func print(numLines int, cacheDir string, outputPath string, offset int, offsetFile string, ahead int, cls bool) {
 	(&Listener{
-		display:    NewDisplay(numLines, outputPath),
+		display:    NewDisplay(numLines, outputPath, cls),
 		cacheDir:   cacheDir,
 		offset:     offset,
 		offsetFile: offsetFile,
+		ahead:      ahead,
 	}).proc()
 }

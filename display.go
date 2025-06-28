@@ -12,9 +12,10 @@ type Display struct {
 	outputPath string
 	tail       int
 	size       int
+	cls        bool
 }
 
-func NewDisplay(numLines int, outputPath string) *Display {
+func NewDisplay(numLines int, outputPath string, cls bool) *Display {
 	if numLines < 1 {
 		log("Invalid number of lines, defaulting to 1")
 		numLines = 1
@@ -25,6 +26,7 @@ func NewDisplay(numLines int, outputPath string) *Display {
 		outputPath: outputPath,
 		tail:       0,
 		size:       0,
+		cls:        cls,
 	}
 }
 
@@ -44,7 +46,14 @@ func (d *Display) AddLine(line string) {
 
 func (d *Display) display() {
 	builder := strings.Builder{}
+	if d.cls {
+		builder.WriteString("\033[H\033[2J") // Clear screen
+	}
 	head := d.tail + d.numLines - d.size
+	// Fill empty lines
+	for i := 0; i < d.numLines-d.size; i++ {
+		builder.WriteString("\n")
+	}
 	for i := 0; i < d.size; i++ {
 		builder.WriteString(d.lines[(head+i)%d.numLines] + "\n")
 	}

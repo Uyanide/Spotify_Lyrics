@@ -8,4 +8,4 @@
 
 -   API Deployment: [spotify-lyrics-api](https://github.com/akashrchandran/spotify-lyrics-api)
 
--   `playerctl` media player controller for spotify and others.
+-   `playerctl` media player cli controller
