@@ -51,7 +51,6 @@ func acquireLock(lockFile string) (*os.File, error) {
 var (
 	argNumLines   int
 	argOutputPath string
-	argTrackID    string
 	argOffset     int
 	argOffsetFile string
 	argInterval   int
@@ -80,8 +79,6 @@ var fetchCmd = &cobra.Command{
 		var finalTrackID string
 		if len(args) > 0 {
 			finalTrackID = args[0]
-		} else if argTrackID != "" {
-			finalTrackID = argTrackID
 		} else {
 			var err error
 			finalTrackID, err = getTrackID()
@@ -102,9 +99,7 @@ var fetchCmd = &cobra.Command{
 				fmt.Println(lyric.Words)
 			}
 		} else {
-			for _, lyric := range res.Lyrics {
-				fmt.Printf("%d %s\n", lyric.StartTimeMs, lyric.Words)
-			}
+			lrcEncodeFile("/dev/stdout", res)
 		}
 	},
 }
