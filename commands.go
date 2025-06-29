@@ -2,21 +2,63 @@ package main
 
 import (
 	"fmt"
-	"os/exec"
-	"strconv"
 	"strings"
+
+	"github.com/godbus/dbus/v5"
 )
 
-func getTrackID() (string, error) {
-	cmd := exec.Command("playerctl", "metadata", "mpris:trackid", "--player=spotify")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("error running playerctl: %v", err)
+const (
+	spotifyBusName  = "org.mpris.MediaPlayer2.spotify"
+	mprisPath       = "/org/mpris/MediaPlayer2"
+	playerInterface = "org.mpris.MediaPlayer2.Player"
+)
+
+var conn *dbus.Conn
+
+func initDBus() error {
+	if conn != nil {
+		return nil
 	}
 
-	trackID := strings.TrimSpace(string(output))
-	if trackID == "" {
-		return "", fmt.Errorf("no track ID found")
+	var err error
+	conn, err = dbus.SessionBus()
+	if err != nil {
+		return fmt.Errorf("failed to connect to session bus: %v", err)
+	}
+	return nil
+}
+
+func getMetadata[T any](key string) (T, error) {
+	var zero T // default value
+
+	if err := initDBus(); err != nil {
+		return zero, err
+	}
+
+	obj := conn.Object(spotifyBusName, mprisPath)
+
+	var metadata map[string]dbus.Variant
+	err := obj.Call("org.freedesktop.DBus.Properties.Get", 0, playerInterface, "Metadata").Store(&metadata)
+	if err != nil {
+		return zero, fmt.Errorf("error getting metadata: %v", err)
+	}
+
+	value, exists := metadata[key]
+	if !exists {
+		return zero, fmt.Errorf("key %s not found in metadata", key)
+	}
+
+	var result T
+	if err := value.Store(&result); err != nil {
+		return zero, fmt.Errorf("error storing value for key %s: %v", key, err)
+	}
+	return result, nil
+}
+
+func getTrackID() (string, error) {
+	trackID, err := getMetadata[string]("mpris:trackid")
+	if err != nil {
+		return "", err
 	}
 
 	parts := strings.Split(trackID, "/")
@@ -28,67 +70,90 @@ func getTrackID() (string, error) {
 }
 
 func getPosition() (int, error) {
-	cmd := exec.Command("playerctl", "position", "--player=spotify")
-	output, err := cmd.Output()
+	if err := initDBus(); err != nil {
+		return -1, err
+	}
+
+	obj := conn.Object(spotifyBusName, mprisPath)
+
+	var position uint64
+	err := obj.Call("org.freedesktop.DBus.Properties.Get", 0, playerInterface, "Position").Store(&position)
 	if err != nil {
 		return -1, fmt.Errorf("error getting position: %v", err)
 	}
 
-	positionStr := strings.TrimSpace(string(output))
-	position, err := strconv.ParseFloat(positionStr, 64)
-	if err != nil {
-		return -1, fmt.Errorf("invalid position value: %v", err)
-	}
-
-	return int(position * 1000), nil // Convert to milliseconds
+	return int(position / 1000), nil // Convert microseconds to milliseconds
 }
 
 func getTrackInfo() (string, error) {
-	cmd := exec.Command("playerctl", "metadata", "--format", "{{artist}} - {{title}}", "--player=spotify")
-	output, err := cmd.Output()
+	defaultArtist := "UNKOWN ARTIST"
+
+	artist, err := getMetadata[[]string]("xesam:artist")
 	if err != nil {
-		return "", fmt.Errorf("error getting track info: %v", err)
+		log(fmt.Sprintf("Error getting artist: %v", err))
+		artist = []string{defaultArtist}
+	}
+	title, err := getMetadata[string]("xesam:title")
+	if err != nil {
+		log(fmt.Sprintf("Error getting title: %v", err))
+		title = "UNKOWN TITLE"
 	}
 
-	trackInfo := strings.TrimSpace(string(output))
-	if trackInfo == "" {
-		return "", fmt.Errorf("no track info found")
-	}
-
-	return trackInfo, nil
+	return fmt.Sprintf("%s - %s", strings.Join(artist, ","), title), nil
 }
 
 func getLength() (int, error) {
-	cmd := exec.Command("playerctl", "metadata", "mpris:length", "--player=spotify")
-	output, err := cmd.Output()
+	length, err := getMetadata[uint64]("mpris:length")
 	if err != nil {
-		return -1, fmt.Errorf("error getting track length: %v", err)
+		return 0, fmt.Errorf("error getting track length: %v", err)
 	}
 
-	lengthStr := strings.TrimSpace(string(output))
-	length, err := strconv.ParseInt(lengthStr, 10, 64)
-	if err != nil {
-		return -1, fmt.Errorf("invalid length value: %v", err)
-	}
-
-	return int(length / 1000), nil // Convert to milliseconds
+	return int(length / 1000), nil // Convert microseconds to milliseconds
 }
 
 func setPosition(position int) error {
-	pos := float64(position) / 1000.0
-	cmd := exec.Command("playerctl", "position", fmt.Sprintf("%.3f", pos), "--player=spotify")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error setting position: %v", err)
+	if err := initDBus(); err != nil {
+		return err
 	}
+
+	obj := conn.Object(spotifyBusName, mprisPath)
+
+	fullTrackID, err := getMetadata[string]("mpris:trackid")
+	if err != nil {
+		return fmt.Errorf("error getting track ID: %v", err)
+	}
+
+	positionMicroseconds := int64(position * 1000) // Convert milliseconds to microseconds and use int64
+
+	// Use the full track ID as object path
+	call := obj.Call(playerInterface+".SetPosition", 0, dbus.ObjectPath(fullTrackID), positionMicroseconds)
+	if call.Err != nil {
+		fmt.Printf("DEBUG: SetPosition failed with track ID: %s, position: %d\n", fullTrackID, positionMicroseconds)
+		return fmt.Errorf("error setting position: %v", call.Err)
+	}
+
 	return nil
 }
 
 func isPlaying() (bool, error) {
-	cmd := exec.Command("playerctl", "status", "--player=spotify")
-	output, err := cmd.Output()
-	if err != nil {
-		return false, fmt.Errorf("error checking player status: %v", err)
+	if err := initDBus(); err != nil {
+		return false, err
 	}
-	status := strings.TrimSpace(string(output))
+
+	obj := conn.Object(spotifyBusName, mprisPath)
+
+	var status string
+	err := obj.Call("org.freedesktop.DBus.Properties.Get", 0, playerInterface, "PlaybackStatus").Store(&status)
+	if err != nil {
+		return false, fmt.Errorf("error getting playback status: %v", err)
+	}
+
 	return status == "Playing", nil
+}
+
+func closeDBus() {
+	if conn != nil {
+		conn.Close()
+		conn = nil
+	}
 }
