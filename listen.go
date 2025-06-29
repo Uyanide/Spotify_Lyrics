@@ -12,7 +12,7 @@ import (
 type Listener struct {
 	display    *Display
 	currTID    string
-	currRes    FetchResult
+	currRes    LyricsData
 	nextIdx    int
 	currOffset int
 	cacheDir   string
@@ -44,7 +44,7 @@ func (l *Listener) proc() {
 		l.onTrackChanged()
 	}
 
-	if l.currRes.Is404 || !l.currRes.IsSynced {
+	if l.currRes.Is404 || !l.currRes.IsLineSynced {
 		// already handled in onTrackChanged
 		return
 	}
@@ -94,30 +94,27 @@ func (l *Listener) onTrackChanged() {
 	l.notFirst = false
 
 	trackInfo := getTrackInfo()
+	l.display.AddLine(trackInfo)
 
 	result, err := fetchLyrics(l.currTID, l.cacheDir)
 	if err != nil || result == nil {
-		l.display.AddLine(trackInfo)
 		l.display.AddLine("No lyrics found")
 		l.display.display()
-		l.currRes = FetchResult{
+		l.currRes = LyricsData{
 			Is404: true,
 		}
 		return
 	}
 	l.currRes = *result
 	if result.Is404 {
-		l.display.AddLine(trackInfo)
 		l.display.AddLine("Lyrics unavailable")
 		l.display.display()
 		log(fmt.Sprintf("Lyrics for track ID %s unavailable", l.currTID))
-	} else if !result.IsSynced {
-		l.display.AddLine(trackInfo)
+	} else if !result.IsLineSynced {
 		l.display.AddLine("Lyrics unsynchronized")
 		l.display.display()
 		log(fmt.Sprintf("Lyrics for track ID %s unsynced", l.currTID))
 	}
-
 }
 
 func (l *Listener) getOffset() (int, error) {

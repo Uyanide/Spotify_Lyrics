@@ -85,21 +85,44 @@ func getPosition() (int, error) {
 	return int(position / 1000), nil // Convert microseconds to milliseconds
 }
 
-func getTrackInfo() string {
-	defaultArtist := "UNKOWN ARTIST"
-
+func getArtist() (string, error) {
 	artist, err := getMetadata[[]string]("xesam:artist")
 	if err != nil {
-		log(fmt.Sprintf("Error getting artist: %v", err))
-		artist = []string{defaultArtist}
+		return "", fmt.Errorf("error getting artist: %v", err)
 	}
+
+	if len(artist) == 0 {
+		return "UNKOWN ARTIST", nil
+	}
+
+	return strings.Join(artist, ", "), nil
+}
+
+func getTitle() (string, error) {
 	title, err := getMetadata[string]("xesam:title")
 	if err != nil {
-		log(fmt.Sprintf("Error getting title: %v", err))
+		return "", fmt.Errorf("error getting title: %v", err)
+	}
+
+	if title == "" {
+		return "UNKOWN TITLE", nil
+	}
+
+	return title, nil
+}
+
+func getTrackInfo() string {
+	artist, err := getArtist()
+	if err != nil {
+		artist = "UNKOWN ARTIST"
+	}
+
+	title, err := getTitle()
+	if err != nil {
 		title = "UNKOWN TITLE"
 	}
 
-	return fmt.Sprintf("%s - %s", strings.Join(artist, ","), title)
+	return fmt.Sprintf("%s - %s", artist, title)
 }
 
 func getLength() (int, error) {
