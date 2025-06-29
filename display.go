@@ -33,7 +33,10 @@ func NewDisplay(numLines int, outputPath string, cls bool) *Display {
 func (d *Display) Clear() {
 	d.tail = 0
 	d.size = 0
-	d.display()
+	// Clear the output file
+	if err := os.WriteFile(d.outputPath, []byte{}, 0644); err != nil {
+		log(fmt.Sprintf("Error writing to output file: %v", err))
+	}
 }
 
 func (d *Display) AddLine(line string) {

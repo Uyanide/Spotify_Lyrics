@@ -10,7 +10,8 @@ else
     exit 1
 fi
 
-go build -ldflags "-X main.APIUrl=$API_URL \
+go build -ldflags "-s -w \
+                   -X main.APIUrl=$API_URL \
                    -X main.RefetchInterval=$REFETCH_INTERVAL \
                    -X main.MinListenInterval=$MIN_LISTEN_INTERVAL" \
-                   -o spotify-lyrics
+         -o spotify-lyrics
