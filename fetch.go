@@ -2,9 +2,7 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,24 +11,19 @@ import (
 )
 
 type LyricLine struct {
-	StartTimeMs string `json:"startTimeMs"`
+	StartTimeMs int    `json:"startTimeMs"`
 	Words       string `json:"words"`
 }
 
-type LyricsResponse struct {
+type LyricsData struct {
 	SyncType string      `json:"syncType"`
 	Lines    []LyricLine `json:"lines"`
 }
 
-type TimedLyric struct {
-	Time  int
-	Lyric string
-}
-
 type FetchResult struct {
-	IsSynced  bool
-	IsInvalid bool // Indicates if the lyrics were not found (404)
-	Lyrics    []TimedLyric
+	IsSynced bool
+	Is404    bool
+	Lyrics   []LyricLine
 }
 
 func parseCachedLyrics(content string) (*FetchResult, error) {
@@ -53,20 +46,20 @@ func parseCachedLyrics(content string) (*FetchResult, error) {
 			return nil, fmt.Errorf("cached state expired, need to refetch")
 		}
 		// if not, treat as invalid
-		result.IsInvalid = true
+		result.Is404 = true
 		return &result, nil
 	}
 
 	result.IsSynced = lines[0] == "SYNCED"
 
-	result.Lyrics = make([]TimedLyric, 0, (len(lines)-1)/2)
+	result.Lyrics = make([]LyricLine, 0, (len(lines)-1)/2)
 	for i := 1; i < len(lines)-1; i += 2 {
 		timeStr := strings.TrimSpace(lines[i])
 		lyric := strings.TrimSpace(lines[i+1])
 
 		if timeStr != "" {
 			if time, err := strconv.Atoi(timeStr); err == nil {
-				result.Lyrics = append(result.Lyrics, TimedLyric{Time: time, Lyric: lyric})
+				result.Lyrics = append(result.Lyrics, LyricLine{StartTimeMs: time, Words: lyric})
 			} else {
 				log(fmt.Sprintf("Error parsing time '%s': %v", timeStr, err))
 				// skip
@@ -77,7 +70,7 @@ func parseCachedLyrics(content string) (*FetchResult, error) {
 	return &result, nil
 }
 
-func _fetchCacheError(cacheFile string) (*FetchResult, error) {
+func _createErrorCache(cacheFile string) (*FetchResult, error) {
 	file, err := os.Create(cacheFile)
 	if err != nil {
 		return nil, fmt.Errorf("error creating cache file: %v", err)
@@ -88,9 +81,31 @@ func _fetchCacheError(cacheFile string) (*FetchResult, error) {
 		fmt.Fprintln(writer, time.Now().Unix()) // Store the fetch time
 		writer.Flush()
 		var ret FetchResult
-		ret.IsInvalid = true
+		ret.Is404 = true
 		return &ret, nil
 	}
+}
+
+func _createCache(cacheFile string, res *FetchResult) {
+	file, err := os.Create(cacheFile)
+	if err != nil {
+		log(fmt.Sprintf("Error creating cache file: %v", err))
+		return // ignore cache error
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	if res.IsSynced {
+		fmt.Fprintln(writer, "SYNCED")
+	} else {
+		fmt.Fprintln(writer, "UNSYNCED")
+	}
+
+	for _, lyric := range res.Lyrics {
+		fmt.Fprintf(writer, "%d\n%s\n", lyric.StartTimeMs, lyric.Words)
+	}
+	writer.Flush()
+	log(fmt.Sprintf("Cached %d lines of lyrics at %s", len(res.Lyrics), cacheFile))
 }
 
 func fetchLyrics(trackID string, cacheDir string) (*FetchResult, error) {
@@ -111,86 +126,52 @@ func fetchLyrics(trackID string, cacheDir string) (*FetchResult, error) {
 	}
 
 	// Fetch from API
-	resp, err := http.Get(fmt.Sprintf("%s?trackid=%s", config.APIUrl, trackID))
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		if resp.StatusCode == 404 {
-			log(fmt.Sprintf("Track ID %s not found (404)", trackID))
-			return _fetchCacheError(cacheFile)
+	if res, err := fetchAPI(trackID); err != nil {
+		appendFetchLog(trackID, fmt.Sprintf("Error fetching lyrics: %v", err))
+		// also cache 404s
+		if err.Error() == "404" {
+			return _createErrorCache(cacheFile)
 		}
-		return nil, fmt.Errorf("API returned status code: %d", resp.StatusCode)
+		return nil, err
+	} else {
+		appendFetchLog(trackID, "Fetched lyrics successfully")
+		_createCache(cacheFile, res)
+		return res, nil
+	}
+}
+
+func fetchAPI(trackID string) (*FetchResult, error) {
+	resp, err := getLyrics(trackID)
+	if err != nil {
+		return nil, err
 	}
 
-	var lyricsResp LyricsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&lyricsResp); err != nil {
-		log(fmt.Sprintf("error decoding response: %v", err))
-		// also regard as 404
-		return _fetchCacheError(cacheFile)
+	if resp == nil {
+		return nil, fmt.Errorf("no lyrics found for track ID: %s", trackID)
 	}
 
 	var result FetchResult
-	if lyricsResp.SyncType != "UNSYNCED" {
-		result.IsSynced = true
-	} else {
-		result.IsSynced = false
-	}
+	log(fmt.Sprintf("Fetched lyrics for track ID: %s, sync type: %s\n", trackID, resp.Lyrics.SyncType))
+	result.IsSynced = resp.Lyrics.SyncType == "SYNCED" || resp.Lyrics.SyncType == "LINE_SYNCED"
+	result.Lyrics = make([]LyricLine, 0, len(resp.Lyrics.Lines)+1)
 
-	if len(lyricsResp.Lines) == 0 {
-		return nil, fmt.Errorf("no lyrics found")
-	}
-	result.Lyrics = make([]TimedLyric, 0, len(lyricsResp.Lines))
+	title := getTrackInfo()
+	result.Lyrics = append(result.Lyrics, LyricLine{
+		StartTimeMs: 0,
+		Words:       title,
+	})
 
-	// write track info as the first line
-	trackInfo, err := getTrackInfo()
-	if err != nil || trackInfo == "" {
-		log(fmt.Sprintf("Error getting track info: %v", err))
-		// ignore
-	} else {
-		result.Lyrics = append(result.Lyrics, TimedLyric{
-			Time:  0,
-			Lyric: trackInfo,
+	for _, line := range resp.Lyrics.Lines {
+		startTimeMs, err := strconv.Atoi(line.StartTimeMs)
+		if err != nil {
+			log(fmt.Sprintf("Error parsing start time '%s': %v", line.StartTimeMs, err))
+			continue // skip this line if parsing fails
+		}
+		result.Lyrics = append(result.Lyrics, LyricLine{
+			StartTimeMs: startTimeMs,
+			Words:       line.Words,
 		})
 	}
 
-	// Cache the lyrics
-	file, err := os.Create(cacheFile)
-	if err != nil {
-		log(fmt.Sprintf("Error creating cache file: %v", err))
-		// ignore
-	} else {
-		defer file.Close()
-		writer := bufio.NewWriter(file)
-		if result.IsSynced {
-			fmt.Fprintln(writer, "SYNCED")
-		} else {
-			fmt.Fprintln(writer, "UNSYNCED")
-		}
-		// first write track info
-		if len(result.Lyrics) > 0 && result.Lyrics[0].Lyric != "" {
-			fmt.Fprintln(writer, "0")
-			fmt.Fprintln(writer, trackInfo)
-		}
-		// then write lyrics
-		for _, line := range lyricsResp.Lines {
-			fmt.Fprintf(writer, "%s\n%s\n", line.StartTimeMs, line.Words)
-		}
-		writer.Flush()
-	}
-
-	// Convert lyrics to TimedLyric
-	for _, line := range lyricsResp.Lines {
-		startTime, err := strconv.Atoi(line.StartTimeMs)
-		if err != nil {
-			log(fmt.Sprintf("Error parsing start time '%s': %v", line.StartTimeMs, err))
-			continue
-		}
-		result.Lyrics = append(result.Lyrics, TimedLyric{Time: startTime, Lyric: line.Words})
-	}
-
-	log(fmt.Sprintf("Fetched %d lines of lyrics for track ID: %s", len(result.Lyrics), trackID))
 	return &result, nil
 }

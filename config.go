@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	APIUrl            = ""
+	SP_DC             = ""
 	RefetchInterval   = ""
 	MinListenInterval = ""
 
@@ -15,14 +15,14 @@ var (
 )
 
 type Config struct {
-	APIUrl              string // API for lyrics
+	SP_DC               string // API for lyrics
 	REFETCH_INTERVAL    int    // "404" cache expiration time, in seconds
 	MIN_LISTEN_INTERVAL int    // minimum interval between two lyrics fetches, in milliseconds
 }
 
 func LoadConfig() *Config {
 	return &Config{
-		APIUrl:              getEnv("SPOTIFY_API_URL", APIUrl, ""),
+		SP_DC:               getEnv("SPOTIFY_API_URL", SP_DC, ""),
 		REFETCH_INTERVAL:    getEnvInt("REFETCH_INTERVAL", RefetchInterval, DefaultRefetchInterval),
 		MIN_LISTEN_INTERVAL: getEnvInt("MIN_LISTEN_INTERVAL", MinListenInterval, DefaultMinListenInterval),
 	}

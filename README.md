@@ -1,11 +1,11 @@
 ### ENV(s)
 
--   `SPOTIFY_API_URL` (essential)
+-   `SP_DC` (essential)
 
 -   `REFETCH_INTERVAL`
 
 -   `MIN_LISTEN_INTERVAL`
 
-### REQUIREMENT(S)
+### SPECIAL THANKS TO
 
--   API Deployment: [spotify-lyrics-api](https://github.com/akashrchandran/spotify-lyrics-api)
+-   [spotify-lyrics-api](https://github.com/akashrchandran/spotify-lyrics-api) for showing how to fetch lyrics data

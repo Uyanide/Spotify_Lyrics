@@ -17,16 +17,16 @@ func init() {
 }
 
 func getCacheDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
 	var dir string
+	cacheDir, err := os.UserCacheDir()
 	if err != nil {
-		log(fmt.Sprintf("Error getting home directory: %v", err))
-		dir = "/tmp/eww/lyrics"
+		log(fmt.Sprintf("Error getting user cache directory: %v", err))
+		dir = filepath.Join(os.TempDir(), "spotify_lyrics")
 	} else {
-		dir = filepath.Join(homeDir, ".cache", "eww", "lyrics")
+		dir = filepath.Join(cacheDir, "spotify_lyrics")
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", err
+		return "", fmt.Errorf("error creating cache directory: %v", err)
 	}
 	return dir, nil
 }
@@ -92,18 +92,18 @@ var fetchCmd = &cobra.Command{
 		}
 
 		res, err := fetchLyrics(finalTrackID, cacheDir)
-		if err != nil || res == nil || res.IsInvalid {
+		if err != nil || res == nil || res.Is404 {
 			log(err.Error())
 			return
 		}
 
 		if argPureOutput {
 			for _, lyric := range res.Lyrics {
-				fmt.Println(lyric.Lyric)
+				fmt.Println(lyric.Words)
 			}
 		} else {
 			for _, lyric := range res.Lyrics {
-				fmt.Printf("%d %s\n", lyric.Time, lyric.Lyric)
+				fmt.Printf("%d %s\n", lyric.StartTimeMs, lyric.Words)
 			}
 		}
 	},
@@ -225,11 +225,7 @@ var infoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "Get information about the current track",
 	Run: func(_ *cobra.Command, _ []string) {
-		trackInfo, err := getTrackInfo()
-		if err != nil {
-			log(fmt.Sprintf("Error getting track info: %v", err))
-			return
-		}
+		trackInfo := getTrackInfo()
 		fmt.Println(trackInfo)
 	},
 }

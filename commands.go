@@ -85,7 +85,7 @@ func getPosition() (int, error) {
 	return int(position / 1000), nil // Convert microseconds to milliseconds
 }
 
-func getTrackInfo() (string, error) {
+func getTrackInfo() string {
 	defaultArtist := "UNKOWN ARTIST"
 
 	artist, err := getMetadata[[]string]("xesam:artist")
@@ -99,7 +99,7 @@ func getTrackInfo() (string, error) {
 		title = "UNKOWN TITLE"
 	}
 
-	return fmt.Sprintf("%s - %s", strings.Join(artist, ","), title), nil
+	return fmt.Sprintf("%s - %s", strings.Join(artist, ","), title)
 }
 
 func getLength() (int, error) {
@@ -128,7 +128,6 @@ func setPosition(position int) error {
 	// Use the full track ID as object path
 	call := obj.Call(playerInterface+".SetPosition", 0, dbus.ObjectPath(fullTrackID), positionMicroseconds)
 	if call.Err != nil {
-		fmt.Printf("DEBUG: SetPosition failed with track ID: %s, position: %d\n", fullTrackID, positionMicroseconds)
 		return fmt.Errorf("error setting position: %v", call.Err)
 	}
 

@@ -44,7 +44,8 @@ func (l *Listener) proc() {
 		l.onTrackChanged()
 	}
 
-	if l.currRes.IsInvalid || !l.currRes.IsSynced {
+	if l.currRes.Is404 || !l.currRes.IsSynced {
+		// already handled in onTrackChanged
 		return
 	}
 
@@ -66,14 +67,14 @@ func (l *Listener) proc() {
 	// display first {ahead} lines
 	if !l.notFirst {
 		for i := 0; i < l.ahead && i < len(l.currRes.Lyrics); i++ {
-			l.display.AddLine(l.currRes.Lyrics[i].Lyric)
+			l.display.AddLine(l.currRes.Lyrics[i].Words)
 			changed = true
 		}
 		l.notFirst = true
 	}
-	for l.nextIdx < len(l.currRes.Lyrics) && l.currRes.Lyrics[l.nextIdx].Time+l.currOffset <= currPos {
+	for l.nextIdx < len(l.currRes.Lyrics) && l.currRes.Lyrics[l.nextIdx].StartTimeMs+l.currOffset <= currPos {
 		if l.nextIdx+l.ahead < len(l.currRes.Lyrics) {
-			l.display.AddLine(l.currRes.Lyrics[l.nextIdx+l.ahead].Lyric)
+			l.display.AddLine(l.currRes.Lyrics[l.nextIdx+l.ahead].Words)
 		} else {
 			l.display.AddLine("")
 		}
@@ -92,11 +93,7 @@ func (l *Listener) onTrackChanged() {
 	l.nextIdx = 0
 	l.notFirst = false
 
-	trackInfo, err := getTrackInfo()
-	if err != nil {
-		log(fmt.Sprintf("Error getting track info: %v", err))
-		trackInfo = "Unknown Track"
-	}
+	trackInfo := getTrackInfo()
 
 	result, err := fetchLyrics(l.currTID, l.cacheDir)
 	if err != nil || result == nil {
@@ -104,12 +101,12 @@ func (l *Listener) onTrackChanged() {
 		l.display.AddLine("No lyrics found")
 		l.display.display()
 		l.currRes = FetchResult{
-			IsInvalid: true,
+			Is404: true,
 		}
 		return
 	}
 	l.currRes = *result
-	if result.IsInvalid {
+	if result.Is404 {
 		l.display.AddLine(trackInfo)
 		l.display.AddLine("Lyrics unavailable")
 		l.display.display()

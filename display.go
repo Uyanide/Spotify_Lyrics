@@ -33,9 +33,16 @@ func NewDisplay(numLines int, outputPath string, cls bool) *Display {
 func (d *Display) Clear() {
 	d.tail = 0
 	d.size = 0
-	// Clear the output file
-	if err := os.WriteFile(d.outputPath, []byte{}, 0644); err != nil {
-		log(fmt.Sprintf("Error writing to output file: %v", err))
+	if d.outputPath == "/dev/stdout" || d.outputPath == "/dev/stderr" {
+		// case terminal output, only clear if cls is true
+		if d.cls {
+			fmt.Print("\033[H\033[2J")
+		}
+	} else {
+		// otherwise reset the file content
+		if err := os.WriteFile(d.outputPath, []byte{}, 0644); err != nil {
+			log(fmt.Sprintf("Error writing to output file: %v", err))
+		}
 	}
 }
 
@@ -49,7 +56,7 @@ func (d *Display) AddLine(line string) {
 
 func (d *Display) display() {
 	builder := strings.Builder{}
-	if d.cls {
+	if d.cls && (d.outputPath == "/dev/stdout" || d.outputPath == "/dev/stderr") {
 		builder.WriteString("\033[H\033[2J") // Clear screen
 	}
 	head := d.tail + d.numLines - d.size
