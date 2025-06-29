@@ -15,7 +15,7 @@ var (
 )
 
 type Config struct {
-	SP_DC               string // API for lyrics
+	SP_DC               string // can be found in cookies of Spotify websites
 	REFETCH_INTERVAL    int    // "404" cache expiration time, in seconds
 	MIN_LISTEN_INTERVAL int    // minimum interval between two lyrics fetches, in milliseconds
 }

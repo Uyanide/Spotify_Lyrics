@@ -1,4 +1,4 @@
-module uyanide.github.com/spotify-lyrics
+module github.com/uyanide/spotify-lyrics
 
 go 1.24.4
 
