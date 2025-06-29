@@ -1,4 +1,4 @@
-### ENV
+### ENV(s)
 
 -   `SPOTIFY_API_URL` (essential)
 
@@ -6,6 +6,6 @@
 
 -   `MIN_LISTEN_INTERVAL`
 
-### DEPENDENCY
+### REQUIREMENT(S)
 
 -   API Deployment: [spotify-lyrics-api](https://github.com/akashrchandran/spotify-lyrics-api)
