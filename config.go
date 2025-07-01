@@ -1,55 +1,19 @@
 package main
 
-import (
-	"os"
-	"strconv"
-)
+import "time"
 
 var (
-	SP_DC             = ""
-	RefetchInterval   = ""
-	MinListenInterval = ""
+	REFETCH_INTERVAL_SEC   = 300
+	RETRY_INTERVAL_SEC     = 2
+	RETRY_TIMES            = 3
+	MIN_LISTEN_INTERVAL_MS = 50
 
-	DefaultRefetchInterval   = 600 // in seconds
-	DefaultMinListenInterval = 50  // in miliseconds
+	TOKEN_URL       = "https://open.spotify.com/api/token"
+	LYRICS_URL      = "https://spclient.wg.spotify.com/color-lyrics/v2/track/"
+	SERVER_TIME_URL = "https://open.spotify.com/api/server-time"
+	USER_AGENT      = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0" // some random UA from my current browser :)
+
+	LRCLIB_API_URL    = "https://lrclib.net/api/get"
+	LRCLIB_USER_AGENT = "github.com/Uyanide/spotify-lyrics"
+	LRCLIB_TIMEOUT    = 30 * time.Second
 )
-
-type Config struct {
-	SP_DC               string // can be found in cookies of Spotify websites
-	REFETCH_INTERVAL    int    // "404" cache expiration time, in seconds
-	MIN_LISTEN_INTERVAL int    // minimum interval between two lyrics fetches, in milliseconds
-}
-
-func LoadConfig() *Config {
-	return &Config{
-		SP_DC:               getEnv("SPOTIFY_API_URL", SP_DC, ""),
-		REFETCH_INTERVAL:    getEnvInt("REFETCH_INTERVAL", RefetchInterval, DefaultRefetchInterval),
-		MIN_LISTEN_INTERVAL: getEnvInt("MIN_LISTEN_INTERVAL", MinListenInterval, DefaultMinListenInterval),
-	}
-}
-
-func getEnv(envKey string, compileValue string, defaultValue string) string {
-	if envValue := os.Getenv(envKey); envValue != "" {
-		return envValue
-	}
-	if compileValue != "" {
-		return compileValue
-	}
-	return defaultValue
-}
-
-func getEnvInt(envKey string, compileValue string, defaultValue int) int {
-	if envValue := os.Getenv(envKey); envValue != "" {
-		if intValue, err := strconv.Atoi(envValue); err == nil {
-			return intValue
-		}
-	}
-
-	if compileValue != "" {
-		if intValue, err := strconv.Atoi(compileValue); err == nil {
-			return intValue
-		}
-	}
-
-	return defaultValue
-}

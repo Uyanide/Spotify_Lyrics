@@ -90,11 +90,6 @@ func getArtist() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error getting artist: %v", err)
 	}
-
-	if len(artist) == 0 {
-		return "UNKOWN ARTIST", nil
-	}
-
 	return strings.Join(artist, ", "), nil
 }
 
@@ -103,11 +98,6 @@ func getTitle() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error getting title: %v", err)
 	}
-
-	if title == "" {
-		return "UNKOWN TITLE", nil
-	}
-
 	return title, nil
 }
 
@@ -123,6 +113,14 @@ func getTrackInfo() string {
 	}
 
 	return fmt.Sprintf("%s - %s", artist, title)
+}
+
+func getAlbum() (string, error) {
+	album, err := getMetadata[string]("xesam:album")
+	if err != nil {
+		return "", fmt.Errorf("error getting album: %v", err)
+	}
+	return album, nil
 }
 
 func getLength() (int, error) {

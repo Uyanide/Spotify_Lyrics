@@ -20,7 +20,7 @@ func lrcDecodeLine(line string) (LyricLine, error) {
 	minutes, _ := strconv.Atoi(matches[1])
 	seconds, _ := strconv.Atoi(matches[2])
 	centiseconds, _ := strconv.Atoi(matches[3])
-	lyrics := matches[4]
+	lyrics := strings.TrimSpace(matches[4])
 
 	startTimeMs := int(minutes*60000 + seconds*1000 + centiseconds*10)
 
@@ -38,42 +38,39 @@ func lrcEncodeLine(line LyricLine) string {
 		line.Words)
 }
 
-func lrcDecodeFile(lines []string) (*LyricsData, error) {
-	ret := &LyricsData{
-		IsLineSynced: false,
-		Is404:        false,
-		Title:        "UNKOWN TITLE",
-		Artist:       "UNKOWN ARTIST",
-	}
+func (data *LyricsData) lrcDecodeLines(lines []string) error {
 	for _, line := range lines {
 		if strings.HasPrefix(line, "[ti:") {
-			ret.Title = strings.TrimSuffix(strings.TrimPrefix(line, "[ti:"), "]")
+			data.Title = strings.TrimSuffix(strings.TrimPrefix(line, "[ti:"), "]")
 		} else if strings.HasPrefix(line, "[ar:") {
-			ret.Artist = strings.TrimSuffix(strings.TrimPrefix(line, "[ar:"), "]")
+			data.Artist = strings.TrimSuffix(strings.TrimPrefix(line, "[ar:"), "]")
+		} else if strings.HasPrefix(line, "[al:") {
+			data.Album = strings.TrimSuffix(strings.TrimPrefix(line, "[al:"), "]")
 		} else if line == "[sync:line]" {
-			ret.IsLineSynced = true
+			data.IsLineSynced = true
 		} else if line == "[sync:unknown]" {
-			ret.IsLineSynced = false
+			data.IsLineSynced = false
 		} else if line != "" {
 			lyricLine, err := lrcDecodeLine(line)
 			if err != nil {
 				log(fmt.Sprintf("error decoding line '%s': %v", line, err))
 			} else {
-				ret.Lyrics = append(ret.Lyrics, lyricLine)
+				data.Lyrics = append(data.Lyrics, lyricLine)
 			}
 		}
 	}
-	return ret, nil
+	return nil
 }
 
-func lrcEncodeFile(path string, data *LyricsData) error {
+func (data *LyricsData) lrcEncodeFile(path string) error {
 	if data == nil {
 		return nil
 	}
 
-	lines := make([]string, 0, len(data.Lyrics)+3)
+	lines := make([]string, 0, len(data.Lyrics)+4)
 	lines = append(lines, fmt.Sprintf("[ti:%s]", data.Title))
 	lines = append(lines, fmt.Sprintf("[ar:%s]", data.Artist))
+	lines = append(lines, fmt.Sprintf("[al:%s]", data.Album))
 	if data.IsLineSynced {
 		lines = append(lines, "[sync:line]")
 	} else {

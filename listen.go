@@ -24,11 +24,21 @@ type Listener struct {
 
 func (l *Listener) loop(interval int) {
 	duration := time.Duration(interval) * time.Millisecond
+	processing := make(chan struct{}, 1)
+
 	for {
-		func() {
-			l.proc()
-			time.Sleep(duration)
-		}()
+		select {
+		case processing <- struct{}{}:
+			go func() {
+				defer func() {
+					<-processing
+				}()
+				l.proc()
+			}()
+		default:
+			log("Processing in progress, skipping")
+		}
+		time.Sleep(duration)
 	}
 }
 
@@ -96,7 +106,7 @@ func (l *Listener) onTrackChanged() {
 	trackInfo := getTrackInfo()
 	l.display.AddLine(trackInfo)
 
-	result, err := fetchLyrics(l.currTID, l.cacheDir)
+	result, err := fetchLyrics(l.cacheDir)
 	if err != nil || result == nil {
 		l.display.AddLine("No lyrics found")
 		l.display.display()
@@ -141,9 +151,9 @@ func (l *Listener) getOffset() (int, error) {
 }
 
 func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string, interval int, ahead int, cls bool) {
-	if interval < config.MIN_LISTEN_INTERVAL {
-		log(fmt.Sprintf("Minimum listen interval is %d milliseconds, using that instead", config.MIN_LISTEN_INTERVAL))
-		interval = config.MIN_LISTEN_INTERVAL
+	if interval < MIN_LISTEN_INTERVAL_MS {
+		log(fmt.Sprintf("Minimum listen interval is %d milliseconds, using that instead", MIN_LISTEN_INTERVAL_MS))
+		interval = MIN_LISTEN_INTERVAL_MS
 	}
 	lockFileHandle, err := acquireLock(lockFile)
 	if err != nil {

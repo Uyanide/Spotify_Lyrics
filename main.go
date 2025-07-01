@@ -10,12 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var config *Config
-
-func init() {
-	config = LoadConfig()
-}
-
 func getCacheDir() (string, error) {
 	var dir string
 	cacheDir, err := os.UserCacheDir()
@@ -66,8 +60,8 @@ var rootCmd = &cobra.Command{
 }
 
 var fetchCmd = &cobra.Command{
-	Use:   "fetch [trackID]",
-	Short: "Fetch lyrics for current or specified track",
+	Use:   "fetch",
+	Short: "Fetch lyrics for current track",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		cacheDir, err := getCacheDir()
@@ -76,19 +70,7 @@ var fetchCmd = &cobra.Command{
 			return
 		}
 
-		var finalTrackID string
-		if len(args) > 0 {
-			finalTrackID = args[0]
-		} else {
-			var err error
-			finalTrackID, err = getTrackID()
-			if err != nil {
-				log(fmt.Sprintf("Error getting track ID: %v", err))
-				return
-			}
-		}
-
-		res, err := fetchLyrics(finalTrackID, cacheDir)
+		res, err := fetchLyrics(cacheDir)
 		if err != nil || res == nil || res.Is404 {
 			log(err.Error())
 			return
@@ -99,7 +81,7 @@ var fetchCmd = &cobra.Command{
 				fmt.Println(lyric.Words)
 			}
 		} else {
-			lrcEncodeFile("/dev/stdout", res)
+			res.lrcEncodeFile("/dev/stdout")
 		}
 	},
 }
@@ -158,7 +140,7 @@ var clearCmd = &cobra.Command{
 		}
 		if len(args) > 0 {
 			trackID := args[0]
-			trackFile := filepath.Join(cacheDir, trackID+".txt")
+			trackFile := filepath.Join(cacheDir, trackID+".lrc")
 			if err := os.Remove(trackFile); err != nil {
 				log(fmt.Sprintf("Error removing track cache file: %v", err))
 				return

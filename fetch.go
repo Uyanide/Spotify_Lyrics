@@ -18,12 +18,22 @@ type LyricLine struct {
 type LyricsData struct {
 	Artist       string
 	Title        string
+	Album        string
+	Length       int // in ms
 	IsLineSynced bool
 	Is404        bool
 	Lyrics       []LyricLine
 }
 
-func parseCachedLyrics(content string) (*LyricsData, error) {
+// currently not used, track ID is enough since this program is called "spotify-"lyrics
+func (data *LyricsData) formatName() string {
+	f := func(str string) string {
+		return strings.ReplaceAll(strings.TrimSpace(str), " ", "_")
+	}
+	return fmt.Sprintf("%s - %s - %s", f(data.Artist), f(data.Title), f(data.Album))
+}
+
+func NewLyricsDataCache(content string) (*LyricsData, error) {
 	lines := strings.Split(strings.TrimSpace(content), "\n")
 	if len(lines) == 0 {
 		return nil, fmt.Errorf("invalid cached lyrics format: no lines found")
@@ -36,43 +46,96 @@ func parseCachedLyrics(content string) (*LyricsData, error) {
 			return nil, fmt.Errorf("invalid cached lyrics format: error parsing fetch time '%s': %v", lines[1], err)
 		}
 		currTime := time.Now().Unix()
-		if currTime-int64(fetchTime) >= int64(config.REFETCH_INTERVAL) {
+		if currTime-int64(fetchTime) >= int64(REFETCH_INTERVAL_SEC) {
 			return nil, fmt.Errorf("cached state expired, need to refetch")
 		}
-		// if not, treat as invalid
+		// if not, avoid refetching
 		return &LyricsData{
 			Is404: true,
 		}, nil
 	}
 
-	return lrcDecodeFile(lines)
+	data := &LyricsData{}
+	err := data.lrcDecodeLines(lines)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding cached lyrics: %v", err)
+	}
+	return data, nil
 }
 
-func _createErrorCache(cacheFile string) (*LyricsData, error) {
+func (data *LyricsData) _createErrorCache(cacheFile string) error {
 	file, err := os.Create(cacheFile)
 	if err != nil {
-		return nil, fmt.Errorf("error creating cache file: %v", err)
-	} else {
-		defer file.Close()
-		writer := bufio.NewWriter(file)
-		fmt.Fprintln(writer, "404")
-		fmt.Fprintln(writer, time.Now().Unix()) // Store the fetch time
-		writer.Flush()
-		var ret LyricsData
-		ret.Is404 = true
-		return &ret, nil
+		return fmt.Errorf("error creating cache file: %v", err)
 	}
+	defer file.Close()
+	writer := bufio.NewWriter(file)
+	fmt.Fprintln(writer, "404")
+	fmt.Fprintln(writer, time.Now().Unix()) // Store the fetch time
+	writer.Flush()
+	data.Is404 = true
+	return nil
 }
 
-func _createCache(cacheFile string, res *LyricsData) {
-	if err := lrcEncodeFile(cacheFile, res); err != nil {
+func (data *LyricsData) _createCache(cacheFile string) {
+	if err := data.lrcEncodeFile(cacheFile); err != nil {
 		log(fmt.Sprintf("Error creating cache file %s: %v", cacheFile, err))
 	} else {
-		log(fmt.Sprintf("Cached %d lines of lyrics at %s", len(res.Lyrics), cacheFile))
+		log(fmt.Sprintf("Cached %d lines of lyrics at %s", len(data.Lyrics), cacheFile))
 	}
 }
 
-func fetchLyrics(trackID string, cacheDir string) (*LyricsData, error) {
+func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, error) {
+	ret := &LyricsData{}
+	var err error
+	// get length
+	ret.Length, err = getLength()
+	if err != nil {
+		return nil, fmt.Errorf("error getting track length: %v", err)
+	}
+	// get metadata. if any of these fails, set to empty and ignore
+	ret.Artist, err = getArtist()
+	if err != nil {
+		log(fmt.Sprintf("Error getting artist: %v", err))
+		ret.Artist = ""
+	}
+	ret.Title, err = getTitle()
+	if err != nil {
+		log(fmt.Sprintf("Error getting title: %v", err))
+		ret.Title = ""
+	}
+	ret.Album, err = getAlbum()
+	if err != nil {
+		log(fmt.Sprintf("Error getting album: %v", err))
+		ret.Album = ""
+	}
+	// fetch from API
+	for i := 0; i < RETRY_TIMES; i++ {
+		err = ret.getLyricsLrclib()
+		if err == nil {
+			break
+		}
+		log(fmt.Sprintf("Error fetching lyrics (attempt %d/%d): %v", i+1, RETRY_TIMES, err))
+		time.Sleep(time.Duration(RETRY_INTERVAL_SEC) * time.Second) // wait before retrying
+	}
+	if err != nil {
+		log(fmt.Sprintf("Failed to fetch lyrics after %d attempts: %v", RETRY_TIMES, err))
+		if err := ret._createErrorCache(cacheFile); err != nil {
+			log(fmt.Sprintf("Error creating error cache: %v", err))
+		}
+		return nil, err
+	}
+	appendFetchLog(trackID, "Fetched lyrics successfully")
+	ret._createCache(cacheFile)
+	return ret, nil
+}
+
+func fetchLyrics(cacheDir string) (*LyricsData, error) {
+	trackID, err := getTrackID()
+	if err != nil {
+		return nil, fmt.Errorf("error getting track ID: %v", err)
+	}
+
 	log(fmt.Sprintf("Fetching lyrics for track ID: %s", trackID))
 
 	cacheFile := filepath.Join(cacheDir, trackID+".lrc")
@@ -80,31 +143,21 @@ func fetchLyrics(trackID string, cacheDir string) (*LyricsData, error) {
 	// Check cache first
 	if content, err := os.ReadFile(cacheFile); err == nil {
 		log(fmt.Sprintf("Cache hit for track ID: %s", trackID))
-		res, err := parseCachedLyrics(string(content))
+		ret, err := NewLyricsDataCache(string(content))
 		if err != nil {
 			log(fmt.Sprintf("Error parsing cached lyrics: %v", err))
 			// ignore cache error, will fetch from API
 		} else {
-			return res, nil
+			return ret, nil
 		}
 	}
 
 	// Fetch from API
-	if res, err := fetchAPI(trackID); err != nil {
-		appendFetchLog(trackID, fmt.Sprintf("Error fetching lyrics: %v", err))
-		// also cache 404s
-		if err.Error() == "404" {
-			return _createErrorCache(cacheFile)
-		}
-		return nil, err
-	} else {
-		appendFetchLog(trackID, "Fetched lyrics successfully")
-		_createCache(cacheFile, res)
-		return res, nil
-	}
+	return NewLyricsDataCurrentTrack(trackID, cacheFile)
 }
 
-func fetchAPI(trackID string) (*LyricsData, error) {
+// get LyricsData from Spotify API, deprecated
+func NewLyricsDataApi(trackID string) (*LyricsData, error) {
 	resp, err := getLyrics(trackID)
 	if err != nil {
 		return nil, err

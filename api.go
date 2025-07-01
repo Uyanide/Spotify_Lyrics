@@ -1,3 +1,5 @@
+// Ref: [spotify-lyrics-api](https://github.com/akashrchandran/spotify-lyrics-api)
+
 package main
 
 import (
@@ -17,13 +19,6 @@ import (
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
-)
-
-var (
-	TOKEN_URL       = "https://open.spotify.com/api/token"
-	LYRICS_URL      = "https://spclient.wg.spotify.com/color-lyrics/v2/track/"
-	SERVER_TIME_URL = "https://open.spotify.com/api/server-time"
-	USER_AGENT      = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0" // some random UA from my current browser :)
 )
 
 type TokenResponse struct {
@@ -138,7 +133,7 @@ func getToken() (string, error) {
 	}
 
 	// check SP_DC
-	if config.SP_DC == "" {
+	if SP_DC == "" {
 		return "", fmt.Errorf("SP_DC is not set")
 	}
 
@@ -155,7 +150,7 @@ func getToken() (string, error) {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("User-Agent", USER_AGENT)
-	req.Header.Set("Cookie", "sp_dc="+config.SP_DC)
+	req.Header.Set("Cookie", "sp_dc="+SP_DC)
 
 	resp, err := client.Do(req)
 	if err != nil {
