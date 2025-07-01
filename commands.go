@@ -28,6 +28,13 @@ func initDBus() error {
 	return nil
 }
 
+func closeDBus() {
+	if conn != nil {
+		conn.Close()
+		conn = nil
+	}
+}
+
 func getMetadata[T any](key string) (T, error) {
 	var zero T // default value
 
@@ -101,7 +108,7 @@ func getTitle() (string, error) {
 	return title, nil
 }
 
-func getTrackInfo() string {
+func getTrackDisplayTitle() string {
 	artist, err := getArtist()
 	if err != nil {
 		artist = "UNKOWN ARTIST"
@@ -155,7 +162,7 @@ func setPosition(position int) error {
 	return nil
 }
 
-func isPlaying() (bool, error) {
+func getPlayingStatus() (bool, error) {
 	if err := initDBus(); err != nil {
 		return false, err
 	}
@@ -169,11 +176,4 @@ func isPlaying() (bool, error) {
 	}
 
 	return status == "Playing", nil
-}
-
-func closeDBus() {
-	if conn != nil {
-		conn.Close()
-		conn = nil
-	}
 }

@@ -71,7 +71,7 @@ var fetchCmd = &cobra.Command{
 		}
 
 		res, err := fetchLyrics(cacheDir)
-		if err != nil || res == nil || res.Is404 {
+		if err != nil || res == nil || res.IsError {
 			log(err.Error())
 			return
 		}
@@ -202,7 +202,7 @@ var infoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "Get information about the current track",
 	Run: func(_ *cobra.Command, _ []string) {
-		trackInfo := getTrackInfo()
+		trackInfo := getTrackDisplayTitle()
 		fmt.Println(trackInfo)
 	},
 }
@@ -224,7 +224,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Get if the current track is playing",
 	Run: func(_ *cobra.Command, _ []string) {
-		status, err := isPlaying()
+		status, err := getPlayingStatus()
 		if err != nil || !status {
 			os.Exit(1)
 		} else {

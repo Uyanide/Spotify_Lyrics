@@ -296,12 +296,6 @@ func getLyrics(trackID string) (*LyricsResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// special case for 404.
-		// which usually means the track has no lyrics or the trackID is invalid,
-		// so such result can be cached later to avoid meaningless high freq requests
-		if resp.StatusCode == http.StatusNotFound {
-			return nil, fmt.Errorf("404")
-		}
 		return nil, fmt.Errorf("API returned status code: %d", resp.StatusCode)
 	}
 

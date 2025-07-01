@@ -54,7 +54,7 @@ func (l *Listener) proc() {
 		l.onTrackChanged()
 	}
 
-	if l.currRes.Is404 || !l.currRes.IsLineSynced {
+	if l.currRes.IsError || !l.currRes.IsLineSynced {
 		// already handled in onTrackChanged
 		return
 	}
@@ -103,7 +103,7 @@ func (l *Listener) onTrackChanged() {
 	l.nextIdx = 0
 	l.notFirst = false
 
-	trackInfo := getTrackInfo()
+	trackInfo := getTrackDisplayTitle()
 	l.display.AddLine(trackInfo)
 
 	result, err := fetchLyrics(l.cacheDir)
@@ -111,12 +111,12 @@ func (l *Listener) onTrackChanged() {
 		l.display.AddLine("No lyrics found")
 		l.display.display()
 		l.currRes = LyricsData{
-			Is404: true,
+			IsError: true,
 		}
 		return
 	}
 	l.currRes = *result
-	if result.Is404 {
+	if result.IsError {
 		l.display.AddLine("Lyrics unavailable")
 		l.display.display()
 		log(fmt.Sprintf("Lyrics for track ID %s unavailable", l.currTID))
@@ -175,6 +175,7 @@ func listen(numLines int, cacheDir string, outputPath string, lockFile string, o
 	}).loop(interval)
 }
 
+// 'print' is simply 'listen' without loops
 func print(numLines int, cacheDir string, outputPath string, offset int, offsetFile string, ahead int, cls bool) {
 	(&Listener{
 		display:    NewDisplay(numLines, outputPath, cls),

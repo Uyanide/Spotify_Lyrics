@@ -21,11 +21,11 @@ type LyricsData struct {
 	Album        string
 	Length       int // in ms
 	IsLineSynced bool
-	Is404        bool
+	IsError      bool
 	Lyrics       []LyricLine
 }
 
-// currently not used, track ID is enough since this program is called "spotify-"lyrics
+// currently not used, track ID should be enough since this program is called "spotify-"lyrics
 func (data *LyricsData) formatName() string {
 	f := func(str string) string {
 		return strings.ReplaceAll(strings.TrimSpace(str), " ", "_")
@@ -49,9 +49,9 @@ func NewLyricsDataCache(content string) (*LyricsData, error) {
 		if currTime-int64(fetchTime) >= int64(REFETCH_INTERVAL_SEC) {
 			return nil, fmt.Errorf("cached state expired, need to refetch")
 		}
-		// if not, avoid refetching
+		// if not, avoid refetching by not returning an error
 		return &LyricsData{
-			Is404: true,
+			IsError: true,
 		}, nil
 	}
 
@@ -63,7 +63,7 @@ func NewLyricsDataCache(content string) (*LyricsData, error) {
 	return data, nil
 }
 
-func (data *LyricsData) _createErrorCache(cacheFile string) error {
+func (data *LyricsData) createErrorCache(cacheFile string) error {
 	file, err := os.Create(cacheFile)
 	if err != nil {
 		return fmt.Errorf("error creating cache file: %v", err)
@@ -73,11 +73,11 @@ func (data *LyricsData) _createErrorCache(cacheFile string) error {
 	fmt.Fprintln(writer, "404")
 	fmt.Fprintln(writer, time.Now().Unix()) // Store the fetch time
 	writer.Flush()
-	data.Is404 = true
+	data.IsError = true
 	return nil
 }
 
-func (data *LyricsData) _createCache(cacheFile string) {
+func (data *LyricsData) createCache(cacheFile string) {
 	if err := data.lrcEncodeFile(cacheFile); err != nil {
 		log(fmt.Sprintf("Error creating cache file %s: %v", cacheFile, err))
 	} else {
@@ -88,7 +88,7 @@ func (data *LyricsData) _createCache(cacheFile string) {
 func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, error) {
 	ret := &LyricsData{}
 	var err error
-	// get length
+	// get length. 'crucial' according to lrclib.net
 	ret.Length, err = getLength()
 	if err != nil {
 		return nil, fmt.Errorf("error getting track length: %v", err)
@@ -109,9 +109,9 @@ func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, e
 		log(fmt.Sprintf("Error getting album: %v", err))
 		ret.Album = ""
 	}
-	// fetch from API
+	// fetch
 	for i := 0; i < RETRY_TIMES; i++ {
-		err = ret.getLyricsLrclib()
+		err = ret.fetchLyricsLrclib()
 		if err == nil {
 			break
 		}
@@ -120,13 +120,13 @@ func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, e
 	}
 	if err != nil {
 		log(fmt.Sprintf("Failed to fetch lyrics after %d attempts: %v", RETRY_TIMES, err))
-		if err := ret._createErrorCache(cacheFile); err != nil {
+		if err := ret.createErrorCache(cacheFile); err != nil {
 			log(fmt.Sprintf("Error creating error cache: %v", err))
 		}
 		return nil, err
 	}
 	appendFetchLog(trackID, "Fetched lyrics successfully")
-	ret._createCache(cacheFile)
+	ret.createCache(cacheFile)
 	return ret, nil
 }
 
@@ -156,7 +156,7 @@ func fetchLyrics(cacheDir string) (*LyricsData, error) {
 	return NewLyricsDataCurrentTrack(trackID, cacheFile)
 }
 
-// get LyricsData from Spotify API, deprecated
+// get LyricsData from Spotify API, DEPRECATED
 func NewLyricsDataApi(trackID string) (*LyricsData, error) {
 	resp, err := getLyrics(trackID)
 	if err != nil {

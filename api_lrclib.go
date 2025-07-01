@@ -13,7 +13,7 @@ type LrclibLyricsResponse struct {
 	SyncedLyrics string `json:"syncedLyrics"`
 }
 
-func (data *LyricsData) getLyricsLrclib() error {
+func (data *LyricsData) fetchLyricsLrclib() error {
 	client := &http.Client{Timeout: LRCLIB_TIMEOUT}
 	reqUrl := LRCLIB_API_URL + "?track_name=" + url.QueryEscape(data.Title) + "&artist_name=" + url.QueryEscape(data.Artist) + "&album_name=" + url.QueryEscape(data.Album) + "&duration=" + strconv.Itoa(data.Length/1000)
 	req, err := http.NewRequest("GET", reqUrl, nil)
