@@ -124,6 +124,10 @@ func (l *Listener) onTrackChanged() {
 		l.display.AddLine("Lyrics unsynchronized")
 		l.display.display()
 		log(fmt.Sprintf("Lyrics for track ID %s unsynced", l.currTID))
+	} else if len(result.Lyrics) == 0 {
+		l.display.AddLine("No lyrics found")
+		l.display.display()
+		log(fmt.Sprintf("No lyrics found for track ID %s", l.currTID))
 	}
 }
 
