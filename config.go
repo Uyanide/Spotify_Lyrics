@@ -17,5 +17,5 @@ var (
 
 	LRCLIB_API_URL    = "https://lrclib.net/api/get"
 	LRCLIB_USER_AGENT = "github.com/Uyanide/spotify-lyrics"
-	LRCLIB_TIMEOUT    = 30 * time.Second
+	FETCH_TIMEOUT     = 30 * time.Second
 )

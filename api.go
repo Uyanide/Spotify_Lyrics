@@ -326,7 +326,7 @@ func getLyrics(trackID string) (*LyricsResponse, error) {
 		return nil, fmt.Errorf("failed to get token: %w", err)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: FETCH_TIMEOUT}
 
 	reqUrl := LYRICS_URL + trackID + "?format=json&market=from_token"
 	req, err := http.NewRequest("GET", reqUrl, nil)

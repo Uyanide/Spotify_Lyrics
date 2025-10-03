@@ -14,7 +14,7 @@ type LrclibLyricsResponse struct {
 }
 
 func (data *LyricsData) fetchLyricsLrclib() error {
-	client := &http.Client{Timeout: LRCLIB_TIMEOUT}
+	client := &http.Client{Timeout: FETCH_TIMEOUT}
 	reqUrl := LRCLIB_API_URL +
 		"?track_name=" + url.QueryEscape(data.Title) +
 		"&artist_name=" + url.QueryEscape(data.Artist) +

@@ -86,9 +86,15 @@ func (data *LyricsData) createCache(cacheFile string) {
 	}
 }
 
-func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, error) {
+func NewLyricsDataCurrentTrack(cacheFile string) (*LyricsData, error) {
 	ret := &LyricsData{}
 	var err error
+
+	// get track ID first
+	ret.TrackID, err = getTrackID()
+	if err != nil {
+		return nil, fmt.Errorf("error getting track ID: %v", err)
+	}
 	// get length. 'crucial' according to lrclib.net
 	ret.Length, err = getLength()
 	if err != nil {
@@ -110,7 +116,6 @@ func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, e
 		log(fmt.Sprintf("Error getting album: %v", err))
 		ret.Album = ""
 	}
-	ret.TrackID = trackID
 
 	// First try spotify API
 	log("Fetching lyrics from Spotify API...")
@@ -142,7 +147,7 @@ func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, e
 		}
 		return nil, err
 	}
-	appendFetchLog(trackID, "Fetched lyrics successfully")
+	appendFetchLog(ret.TrackID, "Fetched lyrics successfully")
 	ret.createCache(cacheFile)
 	return ret, nil
 }
@@ -170,5 +175,5 @@ func fetchLyrics(cacheDir string) (*LyricsData, error) {
 	}
 
 	// Fetch from API
-	return NewLyricsDataCurrentTrack(trackID, cacheFile)
+	return NewLyricsDataCurrentTrack(cacheFile)
 }
