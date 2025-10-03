@@ -271,17 +271,6 @@ func generateTOTP(serverTimeSeconds int64, secret string) (string, error) {
 	return fmt.Sprintf("%0*d", digits, code), nil
 }
 
-// removes non-hexadecimal characters from a string and ensures it has an even length
-// func cleanHex(hexStr string) string {
-// 	// kept for backward compatibility but unused in current PHP-like flow
-// 	reg := regexp.MustCompile("[^0123456789abcdefABCDEF]")
-// 	cleaned := reg.ReplaceAllString(hexStr, "")
-// 	if len(cleaned)%2 != 0 {
-// 		cleaned = cleaned[:len(cleaned)-1]
-// 	}
-// 	return cleaned
-// }
-
 // Fetches the latest secret and its version
 func getLatestSecretKeyVersion() (string, int, error) {
 	client := &http.Client{Timeout: 30 * time.Second}

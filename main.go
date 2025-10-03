@@ -71,7 +71,16 @@ var listenCmd = &cobra.Command{
 			return
 		}
 		lockFile := filepath.Join(cacheDir, "spotify-lyrics.lock")
-		listen(argNumLines, cacheDir, argOutputPath, lockFile, argOffset, argOffsetFile, argInterval, argAhead, argCls)
+		service := &LyricsService{
+			NumLines:   argNumLines,
+			CacheDir:   cacheDir,
+			OutputPath: argOutputPath,
+			Offset:     argOffset,
+			OffsetFile: argOffsetFile,
+			Ahead:      argAhead,
+			Cls:        argCls,
+		}
+		service.listen(lockFile, argInterval)
 	},
 }
 
@@ -92,7 +101,16 @@ var printCmd = &cobra.Command{
 			log(fmt.Sprintf("Error initializing cache directory: %v", err))
 			return
 		}
-		print(argNumLines, cacheDir, argOutputPath, argOffset, argOffsetFile, argAhead, argCls)
+		service := &LyricsService{
+			NumLines:   argNumLines,
+			CacheDir:   cacheDir,
+			OutputPath: argOutputPath,
+			Offset:     argOffset,
+			OffsetFile: argOffsetFile,
+			Ahead:      argAhead,
+			Cls:        argCls,
+		}
+		service.print()
 	},
 }
 

@@ -9,20 +9,24 @@ import (
 	"time"
 )
 
-type Listener struct {
+type LyricsService struct {
+	NumLines   int
+	OutputPath string
+	Cls        bool
+	CacheDir   string
+	Offset     int
+	OffsetFile string
+	Ahead      int
+
 	display    *Display
 	currTID    string
 	currRes    LyricsData
 	nextIdx    int
 	currOffset int
-	cacheDir   string
-	offset     int
-	offsetFile string
-	ahead      int
 	notFirst   bool
 }
 
-func (l *Listener) loop(interval int) {
+func (l *LyricsService) loop(interval int) {
 	duration := time.Duration(interval) * time.Millisecond
 	processing := make(chan struct{}, 1)
 
@@ -42,7 +46,7 @@ func (l *Listener) loop(interval int) {
 	}
 }
 
-func (l *Listener) proc() {
+func (l *LyricsService) proc() {
 	trackID, err := getTrackID()
 	if l.currTID != trackID {
 		l.currTID = trackID
@@ -76,15 +80,15 @@ func (l *Listener) proc() {
 	log(fmt.Sprintf("Current position: %d, Offset: %d", currPos, offset))
 	// display first {ahead} lines
 	if !l.notFirst {
-		for i := 0; i < l.ahead && i < len(l.currRes.Lyrics); i++ {
+		for i := 0; i < l.Ahead && i < len(l.currRes.Lyrics); i++ {
 			l.display.AddLine(l.currRes.Lyrics[i].Words)
 			changed = true
 		}
 		l.notFirst = true
 	}
 	for l.nextIdx < len(l.currRes.Lyrics) && l.currRes.Lyrics[l.nextIdx].StartTimeMs+l.currOffset <= currPos {
-		if l.nextIdx+l.ahead < len(l.currRes.Lyrics) {
-			l.display.AddLine(l.currRes.Lyrics[l.nextIdx+l.ahead].Words)
+		if l.nextIdx+l.Ahead < len(l.currRes.Lyrics) {
+			l.display.AddLine(l.currRes.Lyrics[l.nextIdx+l.Ahead].Words)
 		} else {
 			l.display.AddLine("")
 		}
@@ -97,7 +101,7 @@ func (l *Listener) proc() {
 	}
 }
 
-func (l *Listener) onTrackChanged() {
+func (l *LyricsService) onTrackChanged() {
 	log(fmt.Sprintf("Switching to track ID: %s", l.currTID))
 	l.display.Clear()
 	l.nextIdx = 0
@@ -106,7 +110,7 @@ func (l *Listener) onTrackChanged() {
 	trackInfo := getTrackDisplayTitle()
 	l.display.AddLine(trackInfo)
 
-	result, err := fetchLyrics(l.cacheDir)
+	result, err := fetchLyrics(l.CacheDir)
 	if err != nil || result == nil {
 		l.display.AddLine("No lyrics found")
 		l.display.display()
@@ -131,19 +135,19 @@ func (l *Listener) onTrackChanged() {
 	}
 }
 
-func (l *Listener) getOffset() (int, error) {
-	if l.offsetFile == "" {
-		return l.offset, nil
+func (l *LyricsService) getOffset() (int, error) {
+	if l.OffsetFile == "" {
+		return l.Offset, nil
 	}
-	content, err := os.ReadFile(l.offsetFile)
+	content, err := os.ReadFile(l.OffsetFile)
 	if err != nil {
 		log(fmt.Sprintf("Error reading offset file: %v", err))
 		// If the file doesn't exist, create it with initial value 0
 		if os.IsNotExist(err) {
-			if err := os.WriteFile(l.offsetFile, []byte("0"), 0644); err != nil {
+			if err := os.WriteFile(l.OffsetFile, []byte("0"), 0644); err != nil {
 				return 0, fmt.Errorf("error creating offset file: %v", err)
 			}
-			log(fmt.Sprintf("Offset file created at %s with initial value 0", l.offsetFile))
+			log(fmt.Sprintf("Offset file created at %s with initial value 0", l.OffsetFile))
 			return 0, nil
 		}
 	}
@@ -154,7 +158,7 @@ func (l *Listener) getOffset() (int, error) {
 	return offset, nil
 }
 
-func listen(numLines int, cacheDir string, outputPath string, lockFile string, offset int, offsetFile string, interval int, ahead int, cls bool) {
+func (s *LyricsService) listen(lockFile string, interval int) {
 	if interval < MIN_LISTEN_INTERVAL_MS {
 		log(fmt.Sprintf("Minimum listen interval is %d milliseconds, using that instead", MIN_LISTEN_INTERVAL_MS))
 		interval = MIN_LISTEN_INTERVAL_MS
@@ -170,22 +174,12 @@ func listen(numLines int, cacheDir string, outputPath string, lockFile string, o
 		os.Remove(lockFile)
 	}()
 
-	(&Listener{
-		display:    NewDisplay(numLines, outputPath, cls),
-		cacheDir:   cacheDir,
-		offset:     offset,
-		offsetFile: offsetFile,
-		ahead:      ahead,
-	}).loop(interval)
+	s.display = NewDisplay(s.NumLines, s.OutputPath, s.Cls)
+	s.loop(interval)
 }
 
 // 'print' is simply 'listen' without loops
-func print(numLines int, cacheDir string, outputPath string, offset int, offsetFile string, ahead int, cls bool) {
-	(&Listener{
-		display:    NewDisplay(numLines, outputPath, cls),
-		cacheDir:   cacheDir,
-		offset:     offset,
-		offsetFile: offsetFile,
-		ahead:      ahead,
-	}).proc()
+func (s *LyricsService) print() {
+	s.display = NewDisplay(s.NumLines, s.OutputPath, s.Cls)
+	s.proc()
 }
