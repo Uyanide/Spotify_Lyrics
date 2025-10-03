@@ -3,8 +3,9 @@
 package main
 
 import (
-	"encoding/base32"
-	"encoding/hex"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,13 +13,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
 )
 
 type TokenResponse struct {
@@ -42,6 +39,13 @@ type LyricsResponse struct {
 		} `json:"lines"`
 	} `json:"lyrics"`
 }
+
+type SpotifySecret struct {
+	Version int    `json:"version"`
+	Secret  string `json:"secret"`
+}
+
+type SpotifySecrets []SpotifySecret
 
 func getTokenCacheFile() (string, error) {
 	cacheDir, err := getCacheDir()
@@ -211,7 +215,12 @@ func buildTokenRequestParams() (url.Values, error) {
 		return nil, fmt.Errorf("invalid server time response: %w", err)
 	}
 
-	totp, err := generateTOTP(serverTimeData.ServerTime)
+	secret, version, err := getLatestSecretKeyVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch secret key: %w", err)
+	}
+
+	totpCode, err := generateTOTP(serverTimeData.ServerTime, secret)
 	if err != nil {
 		return nil, err
 	}
@@ -219,57 +228,96 @@ func buildTokenRequestParams() (url.Values, error) {
 	params := url.Values{}
 	params.Set("reason", "transport")
 	params.Set("productType", "web-player")
-	params.Set("totp", totp)
-	params.Set("totpVer", "5")
-	params.Set("ts", strconv.FormatInt(serverTimeData.ServerTime, 10))
+	params.Set("totp", totpCode)
+	params.Set("totpVer", strconv.Itoa(version))
+	params.Set("ts", strconv.FormatInt(time.Now().Unix(), 10))
 
 	return params, nil
 }
 
-// generates TOTP using the server time
-func generateTOTP(serverTimeSeconds int64) (string, error) {
-	secretCipher := []int{12, 56, 76, 33, 88, 44, 88, 33, 78, 78, 11, 66, 22, 22, 55, 69, 54}
-	processed := make([]int, len(secretCipher))
+// generates TOTP using the server time and provided secret
+func generateTOTP(serverTimeSeconds int64, secret string) (string, error) {
+	period := int64(30)
+	digits := 6
 
-	for i, b := range secretCipher {
-		processed[i] = b ^ (i%33 + 9)
+	counter := uint64(serverTimeSeconds / period)
+	var counterBytes [8]byte
+	binary.BigEndian.PutUint64(counterBytes[:], counter)
+
+	mac := hmac.New(sha1.New, []byte(secret))
+	if _, err := mac.Write(counterBytes[:]); err != nil {
+		return "", fmt.Errorf("failed to write hmac: %w", err)
 	}
+	digest := mac.Sum(nil)
 
-	processedStr := ""
-	for _, p := range processed {
-		processedStr += fmt.Sprintf("%d", p)
+	if len(digest) < 4 {
+		return "", fmt.Errorf("hmac digest too short")
 	}
+	offset := int(digest[len(digest)-1] & 0x0F)
+	// dynamic truncation
+	binaryCode := (int(digest[offset])&0x7F)<<24 |
+		(int(digest[offset+1])&0xFF)<<16 |
+		(int(digest[offset+2])&0xFF)<<8 |
+		(int(digest[offset+3]) & 0xFF)
 
-	utf8Bytes := []byte(processedStr)
-	hexStr := hex.EncodeToString(utf8Bytes)
-	cleanedHex := cleanHex(hexStr)
-
-	secretBytes, err := hex.DecodeString(cleanedHex)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode hex string: %w", err)
+	// compute modulus 10^digits without importing math
+	mod := 1
+	for i := 0; i < digits; i++ {
+		mod *= 10
 	}
+	code := binaryCode % mod
 
-	secretBase32 := strings.TrimRight(base32.StdEncoding.EncodeToString(secretBytes), "=")
-
-	code, err := totp.GenerateCodeCustom(secretBase32, time.Unix(serverTimeSeconds, 0), totp.ValidateOpts{
-		Period:    30,
-		Skew:      1,
-		Digits:    6,
-		Algorithm: otp.AlgorithmSHA1,
-	})
-
-	return code, err
+	// zero-pad to digits
+	return fmt.Sprintf("%0*d", digits, code), nil
 }
 
 // removes non-hexadecimal characters from a string and ensures it has an even length
-func cleanHex(hexStr string) string {
-	reg := regexp.MustCompile("[^0123456789abcdefABCDEF]")
-	cleaned := reg.ReplaceAllString(hexStr, "")
+// func cleanHex(hexStr string) string {
+// 	// kept for backward compatibility but unused in current PHP-like flow
+// 	reg := regexp.MustCompile("[^0123456789abcdefABCDEF]")
+// 	cleaned := reg.ReplaceAllString(hexStr, "")
+// 	if len(cleaned)%2 != 0 {
+// 		cleaned = cleaned[:len(cleaned)-1]
+// 	}
+// 	return cleaned
+// }
 
-	if len(cleaned)%2 != 0 {
-		cleaned = cleaned[:len(cleaned)-1]
+// Fetches the latest secret and its version
+func getLatestSecretKeyVersion() (string, int, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(SECRET_KEY_URL)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to fetch secret: %w", err)
 	}
-	return cleaned
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", 0, fmt.Errorf("secret endpoint returned status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to read secret response: %w", err)
+	}
+
+	var arr SpotifySecrets
+	if err := json.Unmarshal(body, &arr); err != nil {
+		return "", 0, fmt.Errorf("invalid secret json: %w", err)
+	}
+	if len(arr) == 0 {
+		return "", 0, fmt.Errorf("secret json empty")
+	}
+	last := arr[len(arr)-1]
+	secretVal := last.Secret
+	versionVal := last.Version
+
+	parts := make([]string, 0, len(secretVal))
+	for i, r := range secretVal {
+		transformed := int(r) ^ ((i % 33) + 9)
+		parts = append(parts, strconv.Itoa(transformed))
+	}
+	transformedStr := strings.Join(parts, "")
+	return transformedStr, versionVal, nil
 }
 
 func getLyrics(trackID string) (*LyricsResponse, error) {
@@ -310,4 +358,26 @@ func getLyrics(trackID string) (*LyricsResponse, error) {
 	}
 
 	return &lyricsResp, nil
+}
+
+func (data *LyricsData) fetchLyricsSpotify() error {
+	resp, err := getLyrics(data.TrackID)
+	if err != nil || resp == nil {
+		return err
+	}
+	data.IsLineSynced = resp.Lyrics.SyncType == "LINE_SYNCED"
+
+	for _, line := range resp.Lyrics.Lines {
+		ms, err := strconv.Atoi(line.StartTimeMs)
+		if err != nil {
+			log(fmt.Sprintf("Error parsing time tag '%s': %v", line.StartTimeMs, err))
+			continue // skip this line if parsing fails
+		}
+		data.Lyrics = append(data.Lyrics, LyricLine{
+			StartTimeMs: ms,
+			Words:       line.Words,
+		})
+	}
+
+	return nil
 }

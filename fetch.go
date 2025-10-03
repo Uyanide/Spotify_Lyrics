@@ -16,6 +16,7 @@ type LyricLine struct {
 }
 
 type LyricsData struct {
+	TrackID      string
 	Artist       string
 	Title        string
 	Album        string
@@ -109,15 +110,31 @@ func NewLyricsDataCurrentTrack(trackID string, cacheFile string) (*LyricsData, e
 		log(fmt.Sprintf("Error getting album: %v", err))
 		ret.Album = ""
 	}
-	// fetch
+	ret.TrackID = trackID
+
+	// First try spotify API
+	log("Fetching lyrics from Spotify API...")
 	for i := 0; i < RETRY_TIMES; i++ {
-		err = ret.fetchLyricsLrclib()
+		err = ret.fetchLyricsSpotify()
 		if err == nil {
 			break
 		}
 		log(fmt.Sprintf("Error fetching lyrics (attempt %d/%d): %v", i+1, RETRY_TIMES, err))
 		time.Sleep(time.Duration(RETRY_INTERVAL_SEC) * time.Second) // wait before retrying
 	}
+	// If not successful or not synced, try lrclib.net
+	if err != nil || !ret.IsLineSynced {
+		log("Fetching lyrics from lrclib.net...")
+		for i := 0; i < RETRY_TIMES; i++ {
+			err = ret.fetchLyricsLrclib()
+			if err == nil {
+				break
+			}
+			log(fmt.Sprintf("Error fetching lyrics from lrclib (attempt %d/%d): %v", i+1, RETRY_TIMES, err))
+			time.Sleep(time.Duration(RETRY_INTERVAL_SEC) * time.Second) // wait before retrying
+		}
+	}
+
 	if err != nil {
 		log(fmt.Sprintf("Failed to fetch lyrics after %d attempts: %v", RETRY_TIMES, err))
 		if err := ret.createErrorCache(cacheFile); err != nil {
@@ -154,45 +171,4 @@ func fetchLyrics(cacheDir string) (*LyricsData, error) {
 
 	// Fetch from API
 	return NewLyricsDataCurrentTrack(trackID, cacheFile)
-}
-
-// get LyricsData from Spotify API, DEPRECATED
-func NewLyricsDataApi(trackID string) (*LyricsData, error) {
-	resp, err := getLyrics(trackID)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp == nil {
-		return nil, fmt.Errorf("no lyrics found for track ID: %s", trackID)
-	}
-
-	var result LyricsData
-	log(fmt.Sprintf("Fetched lyrics for track ID: %s, sync type: %s\n", trackID, resp.Lyrics.SyncType))
-	result.IsLineSynced = resp.Lyrics.SyncType == "SYNCED" || resp.Lyrics.SyncType == "LINE_SYNCED"
-	result.Lyrics = make([]LyricLine, 0, len(resp.Lyrics.Lines)+1)
-
-	result.Title, err = getTitle()
-	if err != nil {
-		result.Title = "UNKNOWN TITLE"
-	}
-	result.Artist, err = getArtist()
-	if err != nil {
-		result.Artist = "UNKNOWN ARTIST"
-	}
-	log(fmt.Sprintf("Track info: %s - %s", result.Artist, result.Title))
-
-	for _, line := range resp.Lyrics.Lines {
-		startTimeMs, err := strconv.Atoi(line.StartTimeMs)
-		if err != nil {
-			log(fmt.Sprintf("Error parsing start time '%s': %v", line.StartTimeMs, err))
-			continue // skip this line if parsing fails
-		}
-		result.Lyrics = append(result.Lyrics, LyricLine{
-			StartTimeMs: startTimeMs,
-			Words:       line.Words,
-		})
-	}
-
-	return &result, nil
 }
