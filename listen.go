@@ -25,6 +25,7 @@ type LyricsService struct {
 	currOffset int
 	notFirst   bool
 	prevPos    int
+	prevOffset int
 }
 
 func (l *LyricsService) loop(interval int) {
@@ -81,7 +82,18 @@ func (l *LyricsService) proc() {
 	} else {
 		l.currOffset = offset
 	}
+	defer func() {
+		l.prevOffset = offset
+	}()
 	log(fmt.Sprintf("Current position: %d, Offset: %d", currPos, offset))
+	if currPos < l.prevPos || offset != l.prevOffset {
+		// seek to the beginning if position moved backward or offset changed
+		// stupid but simple & effective :)
+		log("Position moved backward or offset changed, resetting display")
+		l.display.Clear()
+		l.nextIdx = 0
+		l.notFirst = false
+	}
 	// display first {ahead} lines
 	if !l.notFirst {
 		for i := 0; i < l.Ahead && i < len(l.currRes.Lyrics); i++ {
@@ -90,13 +102,6 @@ func (l *LyricsService) proc() {
 		}
 		l.notFirst = true
 	}
-	if currPos < l.prevPos {
-		// seek to the beginning if position moved backward
-		// stupid but simple & effective :)
-		l.display.Clear()
-		l.nextIdx = 0
-	}
-	// seek forward
 	for l.nextIdx < len(l.currRes.Lyrics) && l.currRes.Lyrics[l.nextIdx].StartTimeMs+l.currOffset <= currPos {
 		if l.nextIdx+l.Ahead < len(l.currRes.Lyrics) {
 			l.display.AddLine(l.currRes.Lyrics[l.nextIdx+l.Ahead].Words)
@@ -117,6 +122,7 @@ func (l *LyricsService) onTrackChanged() {
 	l.display.Clear()
 	l.nextIdx = 0
 	l.notFirst = false
+	l.prevPos = 0
 
 	trackInfo := getTrackDisplayTitle()
 	l.display.AddLine(trackInfo)
