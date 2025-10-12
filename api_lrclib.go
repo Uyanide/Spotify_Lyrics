@@ -32,6 +32,9 @@ func (data *LyricsData) fetchLyricsLrclib() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			data.Is404 = true
+		}
 		return fmt.Errorf("API returned status code: %d", resp.StatusCode)
 	}
 

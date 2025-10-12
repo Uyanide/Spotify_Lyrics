@@ -39,7 +39,11 @@ var fetchCmd = &cobra.Command{
 
 		res, err := fetchLyrics(cacheDir)
 		if err != nil || res == nil || res.IsError {
-			log(err.Error())
+			if err != nil {
+				log(err.Error())
+			} else {
+				log("No lyrics found")
+			}
 			return
 		}
 

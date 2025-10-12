@@ -23,6 +23,7 @@ type LyricsData struct {
 	Length       int // in ms
 	IsLineSynced bool
 	IsError      bool
+	Is404        bool // no further refetching needed if 404 is received
 	Lyrics       []LyricLine
 }
 
@@ -40,19 +41,24 @@ func NewLyricsDataCache(content string) (*LyricsData, error) {
 		return nil, fmt.Errorf("invalid cached lyrics format: no lines found")
 	}
 
-	if lines[0] == "404" {
+	isError := lines[0] == "error"
+	is404 := lines[0] == "404"
+
+	if isError || is404 {
 		// check if cache is expired
 		fetchTime, err := strconv.Atoi(lines[1])
 		if err != nil {
 			return nil, fmt.Errorf("invalid cached lyrics format: error parsing fetch time '%s': %v", lines[1], err)
 		}
 		currTime := time.Now().Unix()
-		if currTime-int64(fetchTime) >= int64(REFETCH_INTERVAL_SEC) {
+		if (isError && currTime-int64(fetchTime) >= int64(REFETCH_INTERVAL_SEC)) ||
+			(is404 && currTime-int64(fetchTime) >= int64(REFETCH_INTERVAL_SEC_404)) {
 			return nil, fmt.Errorf("cached state expired, need to refetch")
 		}
 		// if not, avoid refetching by not returning an error
 		return &LyricsData{
-			IsError: true,
+			IsError: isError,
+			Is404:   is404,
 		}, nil
 	}
 
@@ -71,7 +77,13 @@ func (data *LyricsData) createErrorCache(cacheFile string) error {
 	}
 	defer file.Close()
 	writer := bufio.NewWriter(file)
-	fmt.Fprintln(writer, "404")
+	var state string
+	if data.Is404 {
+		state = "404"
+	} else {
+		state = "error"
+	}
+	fmt.Fprintln(writer, state)
 	fmt.Fprintln(writer, time.Now().Unix()) // Store the fetch time
 	writer.Flush()
 	data.IsError = true
@@ -121,7 +133,7 @@ func NewLyricsDataCurrentTrack(cacheFile string) (*LyricsData, error) {
 	log("Fetching lyrics from Spotify API...")
 	for i := 0; i < RETRY_TIMES; i++ {
 		err = ret.fetchLyricsSpotify()
-		if err == nil {
+		if err == nil || ret.Is404 {
 			break
 		}
 		log(fmt.Sprintf("Error fetching lyrics (attempt %d/%d): %v", i+1, RETRY_TIMES, err))
@@ -135,7 +147,7 @@ func NewLyricsDataCurrentTrack(cacheFile string) (*LyricsData, error) {
 		log("Fetching lyrics from lrclib.net...")
 		for i := 0; i < RETRY_TIMES; i++ {
 			err = ret.fetchLyricsLrclib()
-			if err == nil {
+			if err == nil || ret.Is404 {
 				break
 			}
 			log(fmt.Sprintf("Error fetching lyrics from lrclib (attempt %d/%d): %v", i+1, RETRY_TIMES, err))

@@ -47,6 +47,10 @@ type SpotifySecret struct {
 
 type SpotifySecrets []SpotifySecret
 
+var (
+	err404 = fmt.Errorf("no lyrics found (404)")
+)
+
 func getTokenCacheFile() (string, error) {
 	cacheDir, err := getCacheDir()
 	if err != nil {
@@ -333,6 +337,9 @@ func getLyrics(trackID string) (*LyricsResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, err404
+		}
 		return nil, fmt.Errorf("API returned status code: %d", resp.StatusCode)
 	}
 
@@ -351,7 +358,11 @@ func getLyrics(trackID string) (*LyricsResponse, error) {
 
 func (data *LyricsData) fetchLyricsSpotify() error {
 	resp, err := getLyrics(data.TrackID)
-	if err != nil || resp == nil {
+	if err != nil {
+		if err == err404 {
+			data.Is404 = true
+			return nil
+		}
 		return err
 	}
 	data.IsLineSynced = resp.Lyrics.SyncType == "LINE_SYNCED"
