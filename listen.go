@@ -93,6 +93,7 @@ func (l *LyricsService) proc() {
 	if currPos < l.prevPos {
 		// seek to the beginning if position moved backward
 		// stupid but simple & effective :)
+		l.display.Clear()
 		l.nextIdx = 0
 	}
 	// seek forward
