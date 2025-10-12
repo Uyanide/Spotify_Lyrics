@@ -24,6 +24,7 @@ type LyricsService struct {
 	nextIdx    int
 	currOffset int
 	notFirst   bool
+	prevPos    int
 }
 
 func (l *LyricsService) loop(interval int) {
@@ -64,6 +65,9 @@ func (l *LyricsService) proc() {
 	}
 
 	currPos, err := getPosition()
+	defer func() {
+		l.prevPos = currPos
+	}()
 	if err != nil {
 		l.display.SingleLine("Error getting position")
 		log(fmt.Sprintf("Error getting position: %v", err))
@@ -86,6 +90,12 @@ func (l *LyricsService) proc() {
 		}
 		l.notFirst = true
 	}
+	if currPos < l.prevPos {
+		// seek to the beginning if position moved backward
+		// stupid but simple & effective :)
+		l.nextIdx = 0
+	}
+	// seek forward
 	for l.nextIdx < len(l.currRes.Lyrics) && l.currRes.Lyrics[l.nextIdx].StartTimeMs+l.currOffset <= currPos {
 		if l.nextIdx+l.Ahead < len(l.currRes.Lyrics) {
 			l.display.AddLine(l.currRes.Lyrics[l.nextIdx+l.Ahead].Words)

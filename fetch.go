@@ -129,6 +129,9 @@ func NewLyricsDataCurrentTrack(cacheFile string) (*LyricsData, error) {
 	}
 	// If not successful or not synced, try lrclib.net
 	if err != nil || !ret.IsLineSynced {
+		if !ret.IsLineSynced {
+			log("Fetched lyrics are not line-synced")
+		}
 		log("Fetching lyrics from lrclib.net...")
 		for i := 0; i < RETRY_TIMES; i++ {
 			err = ret.fetchLyricsLrclib()
