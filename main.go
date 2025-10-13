@@ -211,7 +211,7 @@ var trackIDCmd = &cobra.Command{
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Get if the current track is playing",
+	Short: "Return 0 if a track is playing, 1 otherwise",
 	Run: func(_ *cobra.Command, _ []string) {
 		status, err := getPlayingStatus()
 		if err != nil || !status {
