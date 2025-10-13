@@ -24,7 +24,7 @@ func (data *LyricsData) fetchLyricsLrclib() error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", LRCLIB_USER_AGENT)
+	req.Header.Set("User-Agent", USER_AGENT_HONEST)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
