@@ -1,4 +1,4 @@
-A scripting-friendly small utility that talks directly to DBus, fetchs & caches & displays (as plain text) lyrics of the currently playing song from Spotify. This can also be used to fetch lyrics for certain trackid and partially control the player state of Spotify such as toggling play-pause and seeking to certain positions.
+A scripting-friendly small utility that talks directly to DBus, fetchs & caches & displays (as plain text) lyrics of the currently playing song from Spotify. This can also be used to partially control the player state of Spotify such as toggling play-pause and seeking to certain positions.
 
 Currently included methods to get lyrics:
 
