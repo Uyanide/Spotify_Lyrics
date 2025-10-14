@@ -1,4 +1,4 @@
-A scripting-friendly small utility that talks directly to DBus, fetchs & caches & displays (as plain text) lyrics of the currently playing song from Spotify. This can also be used to partially control the player state of Spotify such as toggling play-pause and seeking to certain positions.
+A scripting-friendly small utility that talks directly to DBus, fetchs & caches & displays (as plain text) lyrics of the currently playing track from Spotify. This can also be used to partially control the player state of Spotify such as toggling play-pause and seeking to certain positions.
 
 Currently included methods to get lyrics:
 
@@ -15,3 +15,10 @@ Currently included methods to get lyrics:
 >
 > var SP_DC = "SOME_RANDOM_STRING_FROM_SPOTIFY_COOKIES"
 > ```
+
+what this is for:
+
+<figure>
+    <img src="https://github.com/Uyanide/backgrounds/blob/master/screenshots/backdrop.jpg?raw=true"/>
+    <figcaption>multiline lyrics at top-left & singleline lyrics at top-right</figcaption>
+</figure>
