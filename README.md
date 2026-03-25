@@ -1,3 +1,7 @@
+> [!WARNING]
+>
+> DEPRECATED: Refer to [Uyanide/lrcfetch](https://github.com/Uyanide/lrcfetch) for a more robust and feature-rich solution.
+
 A scripting-friendly small utility that talks directly to DBus, fetchs & caches & displays (as plain text) lyrics of the currently playing track from Spotify. This can also be used to partially control the player state of Spotify such as toggling play-pause and seeking to certain positions.
 
 Currently included methods to get lyrics:
